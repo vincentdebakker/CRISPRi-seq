@@ -5,10 +5,10 @@
 ####
 
 #### 1. Settings ####
-wd <- "~" # working directory
-fd <- "~" # function directory
+wd <- "~" 
+fd <- "~" 
 path_ncbi_downloads <- "~"
-accession_nr <- "GCA_003003495.1" # S. pneumoniae D39V: GCA_003003495.1
+accession_nr <- "GCA_003003495.1" 
 db <- "genbank"
 feature_type <- "locus_tag"
 n_cores <- 1
