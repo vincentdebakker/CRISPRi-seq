@@ -1,0 +1,575 @@
+---
+title: "\\vspace{-1.5cm} \\huge Pneumococcal sgRNA library efficiency exploration \\vspace{-0.5cm}"
+author: ""
+date: ""
+output: 
+  pdf_document: 
+    number_sections: yes
+    toc: yes
+urlcolor: blue
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, fig.align = "center")
+library(readxl)
+library(knitr)
+library(kableExtra)
+library(ggplot2)
+library(ggrepel)
+library(patchwork)
+```
+
+# Introduction
+Here, we assess the efficiency of the CRISPRi sgRNA library designed for _Streptococcus pneumoniae_ D39V in several pneumococcal strains _in silico_. All scores were computed as described in the Methods section with a separate custom R script, to be found on <https://github.com/veeninglab/CRISPRi-seq>, along with the data sets analyzed here. For every potential sgRNA binding site (up to eight mismatches), a genetic element was considered a hit only if its non-template strand was targeted (partially) within the gene body. Computed variables that are evaluated in this document:  
+
+* `reprAct`: Estimated relative retained repression activity, compared to an hypothetical zero-mismatch sgRNA binding site at the same distance from the start codon, on the [0,1] interval (0 - 100% retained activity). 
+* `dist2SC`: Relative distance of the sgRNA binding site to the start codon of the gene. Set to the [0,1] interval with feature scaling, where 0 means binding site on the start codon or partial overlap of the 5-prime end of the gene and 1 means binding site on the far end of or partial overlap with the 3-prime end of the gene.  
+
+For all genomes, the data were retrieved from the Genbank database.  
+
+| Pneumococcal strain | NCBI assembly accession |
+|---|---|
+| D39V | [GCA_003003495.1](https://www.ncbi.nlm.nih.gov/assembly/GCF_003003495.1/) |
+| TIGR4 | [GCA_000006885.1](https://www.ncbi.nlm.nih.gov/assembly/GCF_000006885.1/) |
+| R6 | [GCA_000007045.1](https://www.ncbi.nlm.nih.gov/assembly/GCF_000007045.1/) |
+| Hungary19A-6 (H19A) | [GCA_000019265.1](https://www.ncbi.nlm.nih.gov/assembly/GCA_000019265.1) |
+| Taiwan19F-14 (T19F) | [GCA_000019025.1](https://www.ncbi.nlm.nih.gov/assembly/GCA_000019025.1) |
+| 11A | [GCA_002813955.1](https://www.ncbi.nlm.nih.gov/assembly/GCA_002813955.1) |
+| G54 | [GCA_000019825.1](https://www.ncbi.nlm.nih.gov/assembly/GCA_000019825.1) |
+
+```{r read data, cache=TRUE}
+# directory of data files
+dir_data <- "D:/Projects/CRISPRi/sgRNA_design/"
+# read in D39V
+D39V <- read_xlsx(paste0(dir_data, "lib-1499_GCA_003003495.1.xlsx"))
+D39V$coverPart <- as.factor(D39V$coverPart)
+D39V_NTgene <- subset(D39V, !is.na(NTgene))
+# read in TIGR4
+TIGR4 <- read_xlsx(paste0(dir_data, "lib-1499_GCA_000006885.1.xlsx"))
+TIGR4$coverPart <- as.factor(TIGR4$coverPart)
+TIGR4_NTgene <- subset(TIGR4, !is.na(NTgene))
+# read in R6
+R6 <- read_xlsx(paste0(dir_data, "lib-1499_GCA_000007045.1.xlsx"))
+R6$coverPart <- as.factor(R6$coverPart)
+R6_NTgene <- subset(R6, !is.na(NTgene))
+# read in 19A
+H19A <- read_xlsx(paste0(dir_data, "lib-1499_GCA_000019265.1.xlsx"))
+H19A$coverPart <- as.factor(H19A$coverPart)
+H19A_NTgene <- subset(H19A, !is.na(NTgene))
+# read in T19F
+T19F <- read_xlsx(paste0(dir_data, "lib-1499_GCA_000019025.1.xlsx"))
+T19F$coverPart <- as.factor(T19F$coverPart)
+T19F_NTgene <- subset(T19F, !is.na(NTgene))
+# read in 11A
+S11A <- read_xlsx(paste0(dir_data, "lib-1499_GCA_002813955.1.xlsx"))
+S11A$coverPart <- as.factor(S11A$coverPart)
+S11A_NTgene <- subset(S11A, !is.na(NTgene))
+# read in G54
+G54 <- read_xlsx(paste0(dir_data, "lib-1499_GCA_000019825.1.xlsx"))
+G54$coverPart <- as.factor(G54$coverPart)
+G54_NTgene <- subset(G54, !is.na(NTgene))
+```
+
+## The sgRNA and the gene perspective
+We assessed sgRNA library efficiency from two perspectives: per gene and per sgNRA. The plots below show the different questions they answer, with one gene and one sgRNA as example. The following sections in this document first evaluate the sgRNA perspective and then the gene perspective, per strain in the table above.
+```{r, fig.width=10}
+# per gene
+plot_gene <- "SPV_0123"
+intro_gg1 <- ggplot(subset(D39V_NTgene, NTgene == plot_gene), 
+       aes(dist2SC, reprAct, label = name, col = coverPart)) + 
+  geom_point(size = 2) + 
+  geom_label_repel(data = subset(D39V_NTgene, NTgene == plot_gene & reprAct > 0.5), 
+                   show.legend = FALSE) + 
+  xlim(c(0, 1)) + 
+  ylim(c(0, 1)) + 
+  coord_fixed() + 
+  scale_color_brewer("sgRNA \ncoverage", palette = "Dark2", drop = FALSE) +
+  labs(title = "Gene perspective", 
+       subtitle = paste0("Which sgRNAs have proper \nbinding sites for gene ", plot_gene, "?"), 
+       y = "Relative repression activity", 
+       x = "Relative distance to start codon") + 
+  theme_bw(base_size = 14) + 
+  theme(plot.subtitle = element_text(face = "italic"))
+# per sgRNA
+plot_sgRNA <- "sgRNA0123"
+intro_gg2 <- ggplot(subset(D39V_NTgene, !is.na(NTgene) & name == plot_sgRNA), 
+       aes(dist2SC, reprAct, label = NTgene, col = coverPart)) + 
+  geom_point(size = 2) + 
+  geom_label_repel(data = subset(D39V_NTgene, !is.na(NTgene) & name == plot_sgRNA & reprAct > 0.5), 
+                   show.legend = FALSE) + 
+  xlim(c(0, 1)) + 
+  ylim(c(0, 1)) + 
+  coord_fixed() + 
+  scale_color_brewer("sgRNA \ncoverage", palette = "Dark2", drop = FALSE) + 
+  labs(title = "sgRNA perspective", 
+       subtitle = paste0("Which genes have proper \nbinding sites for ", plot_sgRNA, "?"), 
+       y = "Relative repression activity", 
+       x = "Relative distance to start codon") + 
+  theme_bw(base_size = 14) + 
+  theme(plot.subtitle = element_text(face = "italic"))
+# patch
+intro_gg1 + intro_gg2 + plot_layout(guides = "collect")
+```
+
+
+# sgRNA perspective
+Question answered: How many of the sgRNAs target at least one gene, i.e., are functional?
+
+
+## Considering only number of mismatches {#sgRNAnmm}
+Per strain, we extracted for each sgRNA the binding site within a gene body on the non-template strand that had the minimal number of mismatches. The resulting counts are listed in the table below. Strikingly, the pipeline did not detect a zero-mismatch gene target for all 1499 sgRNAs in D39V, although the library was designed to do so for this strain specifically. 
+```{r sgRNA tab nmm}
+sgRNA_mmtb <- do.call(cbind, lapply(list(D39V_NTgene, 
+                                         TIGR4_NTgene, 
+                                         R6_NTgene, 
+                                         H19A_NTgene, 
+                                         T19F_NTgene, 
+                                         S11A_NTgene, 
+                                         G54_NTgene), 
+                                    function(x){
+                                      table(factor(tapply(x$n.mismatch, x$name, min), levels = 0:8))
+                                    })
+                      )
+kable(cbind(c(rownames(sgRNA_mmtb), "Total number of sgRNAs"), 
+            rbind(sgRNA_mmtb, colSums(sgRNA_mmtb))), 
+      col.names = c("Minimal number of mismatches", "D39V", "TIGR4", "R6", "H19A", "T19F", "11A", "G54"), 
+      row.names = FALSE, 
+      format = "latex", 
+      booktabs = TRUE) %>%
+  kable_styling(full_width = FALSE, latex_options = "HOLD_position") %>% 
+  row_spec(9, hline_after = TRUE) %>%
+  row_spec(10, italic = TRUE) 
+```
+
+The reasons that `r 1499 - sgRNA_mmtb[1, 1]` sgRNAs were reported to have no exact gene target in this analysis are shown in the table below. Briefly, the gene hits these sgRNAs were designed for were in all but one case not found for either of two reasons: (1) the sgRNA was designed to target the gene promoter rather than the gene body due to a lack of proper sgRNA binding sites; (2) the sgRNA targets a genetic element not annotated with a *locus_tag* key in the NCBI database and thus the target was not found (but present and as such annotated in our manually curated in-house database). 
+
+```{r sgRNA tab notar}
+# get sgRNAs
+tar_df <- read_xlsx(paste0(dir_data, "Target_list_vdb.xlsx"))
+nz_i <- as.numeric(substr(names(which(tapply(D39V_NTgene$n.mismatch, D39V_NTgene$name, min) != 0)), 6, 9))
+# make table
+reasons <- c("Not annotated with locus_tag on NCBI: ncRNA srf-09 (RNAswitch-25)", 
+             "Not annotated on NCBI (binding site in SPV_2217, 676352..677447)", 
+             "Binds promoter region", 
+             "Not annotated with locus_tag on NCBI: ncRNA srf-14 (RNAswitch-26)", 
+             "Not annotated with locus_tag on NCBI: ncRNA srf-14 (RNAswitch-27)", 
+             "Not annotated with locus_tag on NCBI: ncRNA srf-14 (RNAswitch-28)", 
+             "Binds promoter region (partially on template strand SPV_1430)", 
+             "Binds promoter region", 
+             "Not annotated with locus_tag on NCBI: ncRNA srf-23 (RNAswitch-29)", 
+             "Binds promoter region", 
+             cell_spec("Design error: TCG instead of TGG in PAM", color = "red", format = "latex"), 
+             "Binds promoter region", 
+             "Binds promoter region; also exact match in promoter SPV_2325")
+kable(cbind(names(which(tapply(D39V_NTgene$n.mismatch, D39V_NTgene$name, min) != 0)), 
+                          gsub("_", "\\_", gsub(",", ", ", tar_df$target_tag[nz_i]), fixed = TRUE), 
+                          gsub("_", "\\_", reasons, fixed = TRUE)), 
+                    col.names = c("sgRNA", "Targets", 
+                                  "Reason no hit found"), 
+                    escape = FALSE, 
+                    format = "latex", 
+                    booktabs = TRUE) %>%
+  kable_styling(full_width = FALSE) %>% 
+  column_spec(2, width = "5em") %>% 
+  column_spec(3, width = "30em") 
+```
+
+Therefore, we considered only sgRNA0845 to not have an exact target in D39V, due to a design error. The other `r 1499 - sgRNA_mmtb[1, 1] - 1` sgRNAs in the table above were added to the zero-mismatch sgRNAs for D39V. This yielded the following strain-wise CRISPRi library functionality summary:
+
+```{r sgRNA-tab-func}
+sgRNA_zmm <- c(sum(sgRNA_mmtb[, 1]) - 1, sgRNA_mmtb[1, -1])
+sgRNA_zmm_tb <- rbind(1499, 
+                      sgRNA_zmm, 
+                      paste0(round(100 * sgRNA_zmm / 1499, 1), "%"))
+rownames(sgRNA_zmm_tb) <- c("Total number of sgRNAs", 
+                            "sgRNAs with exact target", 
+                            "Percentage of functional sgRNAs")
+kable(sgRNA_zmm_tb, 
+      row.names = TRUE, 
+      col.names = c("D39V", "TIGR4", "R6", "H19A", "T19F", "11A", "G54"), 
+      format = "latex", 
+      booktabs = TRUE) %>% 
+  kable_styling(full_width = FALSE, latex_options = "HOLD_position") %>% 
+  row_spec(2, hline_after = TRUE) %>%
+  row_spec(3, bold = TRUE)
+```
+
+
+## Considering both number and position of mismatches
+Naturally, sgRNAs can still be functional with mismatches between its spacer and a binding site, albeit with lower repression activity. To refine the functionality summary of the section above, we therefore extracted for each sgRNA its "optimal" binding site within a gene body on the non-template strand. "Optimal" was here defined as the site with the highest mismatch-based expected repression activity (`reprAct`), thus taking into account both the number and position of mismatches within the sgRNA spacer. An estimated repression activity of 1 corresponds to 0 mismatches. When there were multiple sites with this maximum, the one with the smallest distance to the start codon (`dist2SC`) was chosen. These data are depicted below, split out per strain. The only sgRNAs with an expected repression of <1 in D39V were the ones for which the reasons were already covered in [the section above](#sgRNAnmm). 
+
+```{r sgRNA plot opt, fig.asp=1, fig.width=9}
+# select optimal sgRNA binding site per sgRNA per data set
+sgRNA_mr <- do.call(rbind, 
+                    # rbind output for every data set
+                    lapply(list(D39V_NTgene, 
+                                TIGR4_NTgene, 
+                                R6_NTgene, 
+                                H19A_NTgene, 
+                                T19F_NTgene, 
+                                S11A_NTgene, 
+                                G54_NTgene), 
+                           function(x){
+                             # make the subset
+                             do.call(rbind, lapply(split(x, x$name), function(y){
+                               # which.max returns first row with max, can be multiple, return all:
+                               tmp_max <- y[y$reprAct == max(y$reprAct), ]
+                               # if multiple sgRNA sites with same max reprAct, take one with minimal dist2SC
+                               tmp_max[which.min(tmp_max$dist2SC), ]
+                             }))
+                           }))
+# name strains, make sure correct match with 'chrom'
+sgRNA_mr$Strain <- as.factor(sgRNA_mr$chrom)
+levels(sgRNA_mr$Strain) <- list(D39V = "GCA_003003495.1", 
+                                TIGR4 = "GCA_000006885.1", 
+                                R6 = "GCA_000007045.1", 
+                                H19A = "GCA_000019265.1", 
+                                T19F = "GCA_000019025.1", 
+                                "11A" = "GCA_002813955.1", 
+                                G54 = "GCA_000019825.1")
+# count optimal sites per 2D bin (with size step_size) of dist2SC and reprAct
+step_size <- 0.1
+sgRNA_tbl <- lapply(split(sgRNA_mr, sgRNA_mr$Strain), function(x){
+  table(cut(x$dist2SC, seq(0, 1, step_size), include.lowest = TRUE), 
+        cut(x$reprAct, seq(0, 1, step_size), include.lowest = TRUE))
+})
+# combine counts in data frame with corresponding raster coordinates per strain
+raster_sgRNA <- do.call(rbind, lapply(seq.int(sgRNA_tbl), function(x){
+  cbind(expand.grid(x = seq((step_size / 2), 1, step_size), 
+                    y = seq((step_size / 2), 1, step_size)), 
+        "counts" = ifelse(as.numeric(sgRNA_tbl[[x]]) == 0, NA, as.numeric(sgRNA_tbl[[x]])), 
+        "Strain" = names(sgRNA_tbl)[x])
+}))
+# plot all
+ggplot(sgRNA_mr, aes(dist2SC, reprAct)) + 
+  geom_tile(data = raster_sgRNA, 
+            aes(x, y), 
+            col = "grey20", fill = "white", linetype = "dashed", 
+            show.legend = FALSE) + 
+  geom_label_repel(data = subset(sgRNA_mr, Strain == "D39V" & reprAct < 0.3), 
+                   aes(label = name, col = as.factor(n.mismatch)), 
+                   size = 2, show.legend = FALSE, 
+                   nudge_y = 0.4, seed = 1992) + 
+  geom_point(aes(col = as.factor(n.mismatch)), 
+             size = 2, alpha = 0.5) + 
+  geom_text(data = raster_sgRNA, 
+            aes(x, y, label = counts), 
+            size = 2, 
+            col = "grey20") + 
+  scale_color_viridis_d("Nr. of \nmismatches") + 
+  scale_x_continuous(breaks = c(0, 0.5, 1), 
+                     limits = c(0, 1)) + 
+  scale_y_continuous(breaks = c(0, 0.5, 1), 
+                     limits = c(0, 1)) + 
+  facet_wrap(~ Strain) + 
+  coord_fixed() + 
+  labs(title = "Optimal* within-gene binding site per sgRNA", 
+       caption = "In dark grey: number of sgRNAs in each two-dimensional bin. *Per sgRNA, the one binding site \nwith the highest expected repression activity (based on mismatch number and position) was selected.", 
+       x = "Relative distance to start codon", 
+       y = "Relative expected repression activity") + 
+  theme_classic(base_size = 14) + 
+  theme(plot.caption = element_text(size = 10, 
+                                    #hjust = 0.3, 
+                                    face = "italic"))
+```
+
+Indeed, the number of sgRNAs deemed functional increases with a lower expected repression threshold. However, we hereafter conservatively consider an sgRNA to be functional only when it has at least one within-gene zero-mismatch binding site. This corresponds to the sums of the dark grey numbers in the top row of each respective plot above and to the summary table at the end of [the previous section](#sgRNAnmm).
+
+
+
+# Gene perspective
+Question answered: To what extent is each genome covered by the library?  
+
+The table below tabulates per strain all the unique sgRNA binding sites, split out by the number of mismatches with their respective sgRNAs. Unsurprisingly, the number of zero-mismatch binding sites is very similar for the closely related strains D39V and R6. Indeed, upon closer inspection most of these binding sites correspond to similar, conserved regions across these strains. However, to understand how many of the annotated features in each genome are covered by the sgRNA library, we henceforth focus only on those binding sites that fall at least partially within an annotated genetic element, on the non-template strand. 
+
+```{r binding sites tab}
+# counting ALL binding sites
+count_all_binds <- do.call(cbind, lapply(list(D39V, 
+                                              TIGR4, 
+                                              R6, 
+                                              H19A, 
+                                              T19F, 
+                                              S11A, 
+                                              G54), 
+                                         function(x){
+                                           # make sure to count every binding site only once
+                                           table(x$n.mismatch[!duplicated(x$site)])
+                                         })
+)
+kable(cbind(c(rownames(count_all_binds), "Total number of binding sites"), 
+            rbind(count_all_binds, colSums(count_all_binds))), 
+      col.names = c("Number of mismatches", "D39V", "TIGR4", "R6", "H19A", "T19F", "11A", "G54"), 
+      row.names = FALSE, 
+      #caption = "All sgRNA binding sites accumulated, split out per strain and number of mismatches with the respective sgRNA.", 
+      format = "latex", 
+      booktabs = TRUE) %>%
+  kable_styling(full_width = FALSE, latex_options = "HOLD_position") %>% 
+  row_spec(9, hline_after = TRUE) %>%
+  row_spec(10, italic = TRUE) %>% 
+  column_spec(1, width = "15em")
+```
+
+
+## Considering only number of mismatches {#genenmm}
+For each genetic element that was targeted by at least one sgRNA with at most eight mismatches, we extracted the binding site with the minimal number of mismatches. These gene-wise minimal mismatch binding sites are tabulated per strain below. Naturally, a large number of D39V genes has a zero-mismatch sgRNA, as the library was designed for this strain.  
+
+```{r gene tab nmm}
+gene_mmtb <- do.call(cbind, lapply(list(D39V_NTgene, 
+                                        TIGR4_NTgene, 
+                                        R6_NTgene, 
+                                        H19A_NTgene, 
+                                        T19F_NTgene, 
+                                        S11A_NTgene, 
+                                        G54_NTgene), 
+                                   function(x){
+                                     table(factor(tapply(x$n.mismatch, x$NTgene, min), levels = 0:8))
+                                   })
+                      )
+kable(cbind(c(rownames(gene_mmtb), "Total number of genetic elements covered"), 
+            rbind(gene_mmtb, colSums(gene_mmtb))), 
+      col.names = c("Minimal number of mismatches", "D39V", "TIGR4", "R6", "H19A", "T19F", "11A", "G54"), 
+      row.names = FALSE, 
+      format = "latex", 
+      booktabs = TRUE) %>%
+  kable_styling(full_width = FALSE, latex_options = "HOLD_position") %>% 
+  row_spec(9, hline_after = TRUE) %>%
+  row_spec(10, italic = TRUE) %>% 
+  column_spec(1, width = "20em")
+```
+
+We calculated the percentage of the genetic elements in each genome that was covered by the library by direct targeting without mismatches. However, the true number of repressable genes will in all likelihood be much higher than that, because of polar effects: all genes in an operon are repressed if one of them is targeted.  
+We know for D39V that only 35 genes were not targeted (e.g. due to a lacking PAM site) and thus the effective indirectly targeted genome consisted of $2146 - 35 = 2111$ genetic elements for this sgRNA library. Assuming conserved operon structures across these strains, we used this information to extrapolate the indirectly targeted genome and covered genetic elements in all strains as rough estimates.  
+The indirectly targeted genome was estimated as $directly \ targeted \ genes \cdot \frac{2111}{1554}$, so relative to the D39V case. 
+
+
+```{r gene tab func}
+# direct gene targeting
+totN <- c(2146, 2292, 2116, 2402, 2205, 2317, 2186) # nrow(genes) before running sgRNAefficiency()
+gene_zmm <- gene_mmtb[1, ]
+gene_dirpct <- 100 * gene_zmm / totN
+# indirect gene targeting
+gene_ind <- gene_zmm * (2146 - 35) / gene_zmm[1]
+gene_indpct <- 100 * gene_ind / totN
+# make table
+gene_tar_tb <- rbind(totN, 
+                     gene_zmm, 
+                     paste0(round(gene_dirpct, 1), "%"),
+                     round(gene_ind),
+                     paste0(round(gene_indpct, 1), "%"))
+rownames(gene_tar_tb) <- c("Total annotated genetic elements", 
+                           "Directly targeted genetic elements", 
+                           "Percentage of genetic elements directly covered", 
+                           "Indirectly targeted genetic elements", 
+                           "Percentage of genetic elements indirectly covered")
+# print table
+kable(gene_tar_tb, 
+      col.names = c("D39V", "TIGR4", "R6", "H19A", "T19F", "11A", "G54"), 
+      row.names = TRUE, 
+      format = "latex", 
+      booktabs = TRUE) %>%
+  kable_styling(full_width = FALSE, latex_options = "HOLD_position") %>% 
+  row_spec(1, hline_after = TRUE) %>%
+  row_spec(3, hline_after = TRUE, italic = TRUE) %>%
+  row_spec(5, italic = TRUE) 
+```
+
+```{r gene tab func OLD, eval=FALSE}
+# direct gene targeting
+totN <- c(2146, 2292, 2116, 2402, 2205, 2317, 2186) # nrow(genes) before running sgRNAefficiency()
+gene_zmm <- gene_mmtb[1, ]
+gene_dirpct <- 100 * gene_zmm / totN
+# estimated based on D39V + operon information therein
+gene_tar_toppct <- (2146 - 35) / 2146 # theoretical max % targetable
+gene_tar_topN <- gene_tar_toppct * totN
+sgRNA_func_ratio <- sgRNA_zmm / 1499
+gene_tar_est <- sgRNA_func_ratio * gene_tar_topN
+gene_tar_est_pct <- gene_tar_est / totN
+# make table
+gene_tar_tb <- rbind(gene_zmm, 
+                     totN, 
+                     paste0(round(gene_dirpct, 1), "%"),
+                     round(gene_tar_topN),
+                     paste0(round(100 * sgRNA_func_ratio, 1), "%"), 
+                     round(gene_tar_est), 
+                     paste0(round(100 * gene_tar_est_pct, 1), "%"))
+rownames(gene_tar_tb) <- c("Directly targeted genetic elements", 
+                           "Total annotated genetic elements", 
+                           "Percentage of genetic elements directly covered", 
+                           "Theoretically targetable genetic elements", 
+                           "Percentage of functional sgRNAs", 
+                           "Extrapolated targeted genetic elements", 
+                           "Extrapolated percentage genetic elements covered")
+# print table
+kable(gene_tar_tb, 
+      col.names = c("D39V", "TIGR4", "R6", "H19A", "T19F", "11A", "G54"), 
+      row.names = TRUE, 
+      format = "latex", 
+      booktabs = TRUE) %>%
+  kable_styling(full_width = FALSE, latex_options = "HOLD_position") %>% 
+  row_spec(3, hline_after = TRUE, italic = TRUE) %>%
+  row_spec(7, italic = TRUE) 
+```
+
+Although we can only compute the total number of annotated genes directly targeted by at least one sgRNA without mismatch for the other genomes, the true total number of targeted genetic elements is more likely to be around the estimations in the table above, due to operon structures an polar repression effects.  
+
+```{r R6 D39V overlap}
+D39VoverlapR6 <- 1893
+```
+
+Of note, differences in coverage of genetic elements do not just arise due to differences in genome sequence between any strain and D39V, but also due to differences in their genome annotations. For instance, the D39V genome has many annotated small RNA features (e.g. \textit{srf-*, ccn*}), for which sgRNAs were designed. Many of these features have no equivalent annotated in, for example, R6. Consequently, these sgRNAs do have zero-mismatch binding sites in the same genome region as they do in D39V, but no target hit was registered because no feature was annotated. In total, out of the `r totN[1]` annotated D39V features, `r D39VoverlapR6` have an annotated equivalent in the `r totN[3]` annotated R6 features (according to PneumoBrowse <https://veeninglab.com/pneumobrowse-app/>), leaving `r totN[1] - D39VoverlapR6` and `r totN[3] - D39VoverlapR6` genetic elements uniquely annotated for D39V and R6, respectively. This is also a major source of the disparity in covered features between these closely related strains.  
+
+
+## Considering both number and position of mismatches
+As for the sgRNA perspective analysis, genetic elements containing only an sgRNA binding site with >0 mismatches may still be repressed by the corresponding sgRNA(s), albeit less efficiently so. Again, to refine the more strict zero-mismatch results of [above](#genenmm), we defined the "optimal" sgRNA binding site per genetic element as the one with the highest mismatch-based expected repression activity. In case of multiple binding sites with an equal relative maximum, the one with the smallest distance between PAM and start codon was opted for. 
+
+```{r gene plot opt, fig.asp=1, fig.width=9}
+# select optimal sgRNA binding site per gene per data set
+gene_mr <- do.call(rbind, 
+                    # rbind output for every data set
+                    lapply(list(D39V_NTgene, 
+                                TIGR4_NTgene, 
+                                R6_NTgene, 
+                                H19A_NTgene, 
+                                T19F_NTgene, 
+                                S11A_NTgene, 
+                                G54_NTgene), 
+                           function(x){
+                             # make the subset
+                             do.call(rbind, lapply(split(x, x$NTgene), function(y){
+                               # which.max returns first row with max, can be multiple, return all:
+                               tmp_max <- y[y$reprAct == max(y$reprAct), ]
+                               # if multiple sgRNA sites with same max reprAct, take one with minimal dist2SC
+                               tmp_max[which.min(tmp_max$dist2SC), ]
+                             }))
+                           }))
+
+# name strains, make sure correct match with 'chrom'
+gene_mr$Strain <- as.factor(gene_mr$chrom)
+levels(gene_mr$Strain) <- list(D39V = "GCA_003003495.1", 
+                                TIGR4 = "GCA_000006885.1", 
+                                R6 = "GCA_000007045.1", 
+                                H19A = "GCA_000019265.1", 
+                                T19F = "GCA_000019025.1", 
+                                "11A" = "GCA_002813955.1", 
+                                G54 = "GCA_000019825.1")
+# count optimal sites per 2D bin (with size step_size) of dist2SC and reprAct
+step_size <- 0.1
+gene_tbl <- lapply(split(gene_mr, gene_mr$Strain), function(x){
+  table(cut(x$dist2SC, seq(0, 1, step_size), include.lowest = TRUE), 
+        cut(x$reprAct, seq(0, 1, step_size), include.lowest = TRUE))
+})
+# combine counts in data frame with corresponding raster coordinates per strain
+raster_gene <- do.call(rbind, lapply(seq.int(gene_tbl), function(x){
+  cbind(expand.grid(x = seq((step_size / 2), 1, step_size), 
+                    y = seq((step_size / 2), 1, step_size)), 
+        "counts" = ifelse(as.numeric(gene_tbl[[x]]) == 0, NA, as.numeric(gene_tbl[[x]])), 
+        "Strain" = names(gene_tbl)[x])
+}))
+# plot all
+ggplot(gene_mr, aes(dist2SC, reprAct)) + 
+  geom_tile(data = raster_gene, 
+            aes(x, y), 
+            col = "grey20", fill = "white", linetype = "dashed", 
+            show.legend = FALSE) + 
+  geom_point(aes(col = as.factor(n.mismatch)), 
+             size = 2, alpha = 0.5) + 
+  geom_text(data = raster_gene, 
+            aes(x, y, label = counts), 
+            size = 2, 
+            col = "grey20") + 
+  scale_color_viridis_d("Nr. of \nmismatches") + 
+  scale_x_continuous(breaks = c(0, 0.5, 1), 
+                     limits = c(0, 1)) + 
+  scale_y_continuous(breaks = c(0, 0.5, 1), 
+                     limits = c(0, 1)) + 
+  facet_wrap(~ Strain) + 
+  coord_fixed() + 
+  labs(title = "Optimal* sgRNA binding site per gene", 
+       caption = "In dark grey: number of genes in each two-dimensional bin. *Per gene, the one sgRNA binding site \nwith the highest expected repression activity (based on mismatch number and position) was selected.", 
+       x = "Relative distance to start codon", 
+       y = "Relative expected repression activity") + 
+  theme_classic(base_size = 14) + 
+  theme(plot.caption = element_text(size = 10, 
+                                    #hjust = 0.3, 
+                                    face = "italic"))
+```
+
+The fact that the library was designed for D39V is reflected by the higher number of genetic elements with an optimal sgRNA binding site with both maximum mismatch-based expected repression activity and small distance to the start codon (grey numbers in the plot above). In addition, few D39V genetic elements have a moderate expected repression, which is to be expected because they were either targeted or not by design.  
+
+The relatively large number of genetic elements with good sgRNA targeting (high repression estimates) in other strains indicates conservation of genes between these strains. It should be noted that repression activity is expected to decrease drastically with increasing distance from the start codon, rendering these sgRNAs less efficient. 
+
+### Required library size for zero-mismatch coverage
+Since the CRISPRi library consists of 1499 unique sgRNAs in total and `r gene_zmm[1]` D39V genes were targeted without mismatches, it is obvious that some sgRNAs must have multiple exact gene targets. This can indeed be seen in the table below for all strains tested.  
+
+```{r gene req lib}
+# get counts per sgRNA per strain
+gene_sgtb_ls <- tapply(gene_mr$name[gene_mr$n.mismatch == 0], 
+                       gene_mr$Strain[gene_mr$n.mismatch == 0], 
+                       table)
+# tabulate per nr of counts, set range to overall max
+gene_sgtbtb_ls <- lapply(gene_sgtb_ls, function(x){
+  table(factor(x, levels = 1:max(unlist(gene_sgtb_ls))))
+  })
+# make table
+gene_sgtb_df <- do.call(cbind, 
+                        lapply(gene_sgtbtb_ls, function(x){
+                          cbind(x, as.numeric(names(x)) * x)
+                        }))
+# print table
+kable(rbind(cbind(rownames(gene_sgtb_df), gene_sgtb_df), 
+            c("Totals", colSums(gene_sgtb_df))), 
+      col.names = c("Nr. of targets", rep(c("sgRNAs", "Subtotal targets"), nlevels(gene_mr$Strain))), 
+      row.names = FALSE, 
+      format = "latex", 
+      booktabs = TRUE) %>%
+  kable_styling(full_width = FALSE, latex_options = "HOLD_position") %>% 
+  row_spec(0, angle = 65) %>%
+  row_spec(12, hline_after = TRUE) %>%
+  row_spec(13, italic = TRUE) %>% 
+  column_spec(1:ncol(gene_sgtb_df), width = "2em") %>%
+  column_spec(1, italic = TRUE) %>% 
+  add_header_above(c(" ", setNames(rep(2, nlevels(gene_mr$Strain)), levels(gene_mr$Strain))))
+```
+
+Thus, zero-mismatch coverage was in all cases achieved with just a subset of the full library, even for D39V with just `r sum(gene_sgtb_df[, 1])` sgRNAs. On top of the `r length(nz_i)` sgRNAs for which no target was identified [as explained before](#sgRNAnmm), `r length(unique(D39V$name)) - sum(gene_sgtb_df[, 1]) - length(nz_i)` sgRNAs were apparently not required in D39V, despite them being designed for this strain. We listed the reasons we found for this observation in the table below. 
+
+```{r, gene nonreq lib}
+# get all non-required sgRNAs
+sgRNA_all <- unique(D39V$name)
+D39V_gene_0mm_sg <- gene_mr$name[gene_mr$n.mismatch == 0 & gene_mr$Strain == "D39V"]
+norepr <- sgRNA_all[!(sgRNA_all %in% D39V_gene_0mm_sg)]
+# get non-explained ones
+D39V_sgRNA_nop <- norepr[!(norepr %in% names(which(tapply(D39V_NTgene$n.mismatch, D39V_NTgene$name, min) != 0)))]
+no_i <- as.numeric(substr(D39V_sgRNA_nop, 6, 9))
+# note found reasons
+reasons2 <- c("Outperformed by sgRNA1419", 
+             "Outperformed by sgRNA0854", 
+             "Outperformed by sgRNA1340", 
+             cell_spec("Design error: same sequence as sgRNA0850", color = "red"), 
+             "Outperformed by sgRNA1370", 
+             "Outperformed by sgRNA1302")
+# print table
+kable(cbind(D39V_sgRNA_nop, 
+            gsub("_", "\\_", tar_df$target_tag[no_i], fixed = TRUE), 
+            reasons2), 
+      col.names = c("sgRNA", "Targets", 
+                    "Reason not optimal"), 
+      escape = FALSE, 
+      format = "latex", 
+      booktabs = TRUE) %>%
+  kable_styling(full_width = FALSE, latex_options = "HOLD_position")
+```
+
+So, five sgRNAs were simply outperformed by other sgRNAs. Even though they were designed to target these genetic elements specifically, other sgRNAs bind more closely to the start codon of those genetic elements, and also without mismatches. Lastly, sgRNA0867 was found to have an erroneous sequence (the same as sgRNA0850), which was found to be a design error.  
+
+
+
+\newpage
+
+# Session information
+
+This document was generated with R Markdown. 
+
+```{r}
+sessionInfo()
+```
