@@ -6,8 +6,8 @@
 
 #### 1. Settings ####
 wd <- "~" 
-fd <- "~" 
-path_ncbi_downloads <- "~"
+fd <- wd
+path_ncbi_downloads <- wd
 accession_nr <- "GCA_003003495.1" 
 db <- "genbank"
 feature_type <- "locus_tag"
@@ -130,8 +130,6 @@ candidate_hits <- sgRNAefficiencyMC(sgRNAs = candidate_sgRNAs_uNT,
                                     PAM.pattern = paste0(PAM, "$"), 
                                     no_cores = n_cores, 
                                     outfile = paste0(wd, "/", accession_nr))
-# remove non-informative columns 
-candidate_hits <- candidate_hits[, -match(c("forViewInUCSC", "score"), colnames(candidate_hits))]
 # write full, scored candidate sgRNA list to file if desired
 if(output_full_list){write.csv(candidate_hits, 
                                paste0(wd, "/", accession_nr, "_maxmismatch", max_mismatch, "_candidate_sgRNAs_full.csv"), 
@@ -194,7 +192,6 @@ if(output_optimized_list){
   }
   # collect optimal sgRNAs
   optimal_sgRNAs_df <- do.call(rbind, optimal_sgRNAs_ls)
-  colnames(optimal_sgRNAs_df)[27] <- "TargetSequence"
   # write to file
   write.csv(optimal_sgRNAs_df, file = paste0(wd, "/", accession_nr, "_maxmismatch", max_mismatch, "_sgRNAs_optimal.csv"))
 }

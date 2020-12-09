@@ -251,6 +251,11 @@ sgRNAefficiencyMC <- function(sgRNAs, genes, genome,
     stopCluster(cl)
   }
   
+  # remove non-informative variables
+  lib_hits <- lib_hits[, -match(c("forViewInUCSC", "score"), colnames(lib_hits))]
+  # rename target sequence variable
+  colnames(lib_hits)[match("OffTargetSequence", colnames(lib_hits))] <- "targetSequence"
+  
   # Return full data frame
   return(lib_hits)
 }

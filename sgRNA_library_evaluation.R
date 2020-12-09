@@ -5,12 +5,11 @@
 ####
 
 #### 1. Settings ####
-wd <- "~" 
-fd <- wd 
-path_ncbi_downloads <- "~" 
-sgRNA_file <- paste0(wd, "/sgRNA-library_spn-D39V.csv")
+fd <- "~" 
+path_ncbi_downloads <- fd
+sgRNA_file <- paste0(fd, "/sgRNA-library_spn-D39V.csv")
 accession_nr <- "GCA_003003495.1"
-out_path <- wd
+out_path <- fd
 max_mismatch <- 8
 n_cores <- 1
 feature_type <- "locus_tag"
