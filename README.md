@@ -8,7 +8,7 @@ Published as a part of:
 This repository contains R pipelines to (1) design a _de novo_ sgRNA library and (2) evaluate all potential binding sites of a given sgRNA library on any NCBI genome. Additionally, it contains an example of possible downstream expected efficiency analyses for the latter. 
 
 # Core function
-For both types of analyses mentioned above, it is necessary to identify and score sgRNA binding sites. That is what the function `sgRNAefficiencyMC()` in the file function_sgRNAefficiencyMC.R does. It uses the [`CRISPRseek` package](https://bioconductor.org/packages/release/bioc/html/CRISPRseek.html) and supports multicore processing with the `parallel` package. In principle the user never has to open or adapt the script containing this function.  
+For both types of analyses mentioned above, it is necessary to identify and score sgRNA binding sites. That is what the function `sgRNAefficiencyMC()` in the file **function_sgRNAefficiencyMC.R** does. It uses the [`CRISPRseek` package](https://bioconductor.org/packages/release/bioc/html/CRISPRseek.html) and supports multicore processing with the `parallel` package. In principle the user never has to open or adapt the script containing this function.  
 
 This function is called by both the sgRNA design and the sgRNA evaluation scripts. 
 
@@ -44,14 +44,14 @@ site | numeric. Unique binding site identifier. One binding site overlapping e.g
 NTgene | character. If the binding site lies (partially) within an annotated feature, indicates that feature name. Otherwise `NA`.
 coverPart | character. If the binding site overlaps (partially) with an annotated feature, indicates which part of the spacer does so: complete overlap, with 3' or 5' end of the spacer. Otherwise: `NA`. 
 coverSize | numeric. Number of overlapping base pairs between spacer and `NTgene`, if any.
-reprAct | numeric, on the [0,1] interval. Estimated relative retained repression activity, compared to an hypothetical zero-mismatch binding site for the sgRNA at the same distance from the transcription start site.
-dist2SC | numeric, on the [0,1] interval. Relative distance of the binding site to the start codon of `NTgene`, if any. Here, 0 means the binding site is located on the start codon or has partial overlap with the 5'-end of the feature and 1 means the binding site is on the far end of the feature or has partial overlap with its 3'-end.
+reprAct | numeric, on the \[0,1\] interval. Estimated relative retained repression activity, compared to an hypothetical zero-mismatch binding site for the sgRNA at the same distance from the transcription start site.
+dist2SC | numeric, on the \[0,1\] interval. Relative distance of the binding site to the start codon of `NTgene`, if any. Here, 0 means the binding site is located on the start codon or has partial overlap with the 5'-end of the feature and 1 means the binding site is on the far end of the feature or has partial overlap with its 3'-end.
 
 Except the last six, this output comes from calling `CRISPRseek::searchHits()`. 
 
 
 # _de novo_ sgRNA design
-The pipeline in the file sgRNA_library_design.R can be run to design an sgRNA library for the given genome and annotated features of choice. It identifies all possible candidate sgRNAs targeting the non-template strands of all features. Then it calls the core function `sgRNAefficiencyMC()` to identify for each of the candidate sgRNAs all possible binding sites on the genome. Using that data, the maximum off-target `reprAct` score is computed for each sgRNA, per feature. Finally, the pipeline first selects for each feature the candidate sgRNAs with the lowest expected maximum off-target repression activity (within some user-defined error range) and secondly, of that subset, the one sgRNA with the smallest `dist2CS`.  
+The pipeline in the file **sgRNA_library_design.R** can be run to design an sgRNA library for the given genome and annotated features of choice. It identifies all possible candidate sgRNAs targeting the non-template strands of all features. Then it calls the core function `sgRNAefficiencyMC()` to identify for each of the candidate sgRNAs all possible binding sites on the genome. Using that data, the maximum off-target `reprAct` score is computed for each sgRNA, per feature. Finally, the pipeline first selects for each feature the candidate sgRNAs with the lowest expected maximum off-target repression activity (within some user-defined error range) and secondly, of that subset, the one sgRNA with the smallest `dist2CS`.  
 
 Candidate sgRNAs for every feature are found using `CRISPRseek::findgRNAs()` and genomes and annotations (GFF files) are imported from NCBI using the [biomartr package](https://cran.r-project.org/package=biomartr). The pipeline supports multicore processing.
 
@@ -62,7 +62,7 @@ Open the script (we recommend in the RStudio integrated development environment)
 Parameter | Description
 --- | ---
 `wd` | character. Path to working directory. Output will appear here. Default: local R home directory.
-`fd` | character. Path to directory containing the file function_sgRNAefficiencyMC.R. Default: `wd`.
+`fd` | character. Path to directory containing the file **function_sgRNAefficiencyMC.R**. Default: `wd`.
 `path_ncbi_downloads` | character. Path to directory where downloaded files from NCBI should be stored. Default: `wd`.
 `accession_nr` | character. NCBI assembly accession number of genome for which to design sgRNAs. Default is _S. pneumoniae_ D39V: `"GCA_003003495.1"`. 
 `db` | character. Data base from which to retrieve genome and annotation files. Either `"genbank"`, `"refseq"` or `"ensembl"`. Default: `"genbank"`.
@@ -86,7 +86,7 @@ The pipeline can return three files, depending on user input parameters:
 
 
 # sgRNA binding site evaluation
-The pipeline in the file sgRNA_library_evaluation.R identifies and scores all binding sites up to a specified number of mismatches in a given genome for each sgRNA of a given library. It is the result of a call to `sgRNAefficiencyMC()`.  
+The pipeline in the file **sgRNA_library_evaluation.R** identifies and scores all binding sites up to a specified number of mismatches in a given genome for each sgRNA of a given library. It is the result of a call to `sgRNAefficiencyMC()`.  
 
 Genomes and annotations (GFF files) are imported from NCBI using the [biomartr package](https://cran.r-project.org/package=biomartr). The pipeline supports multicore processing.
 
@@ -96,9 +96,9 @@ Open the script (we recommend in the RStudio integrated development environment)
 ## Input
 Parameter | Description
 --- | ---
-`fd` | character. Path to directory containing the file function_sgRNAefficiencyMC.R. Default: local R home directory.
+`fd` | character. Path to directory containing the file **function_sgRNAefficiencyMC.R**. Default: local R home directory.
 `path_ncbi_downloads` | character. Path to directory where downloaded files from NCBI should be stored. Default: `fd`.
-`sgRNA_file` | character. Path to the .csv file containing the sgRNA information. This file should strictly have no header and two columns, separated by a comma, containing the sgRNA names and sequences without PAM, respectively. Default is the example .csv file with the sgRNA library of Liu _et al._ (2020), saved in the `fd` folder: `paste0(fd, "/sgRNA-library_spn-D39V.csv")`.
+`sgRNA_file` | character. Path to the .csv file containing the sgRNA information. This file should strictly have no header and two columns, separated by a comma, containing the sgRNA names and sequences without PAM, respectively. Default is the example file **sgRNA-library_spn-D39V.csv** with the sgRNA library of Liu _et al._ (2020), saved in the `fd` folder: `paste0(fd, "/sgRNA-library_spn-D39V.csv")`.
 `accession_nr` | character. NCBI assembly accession number of genome for which to evaluate sgRNAs. Default is _S. pneumoniae_ D39V: `"GCA_003003495.1"`. 
 `out_path` | character. Output will be written here. Also passed to the `outfile` argument of `sgRNAefficiencyMC()`. Default: `fd`.
 `max_mismatch` | integer. Maximum number of mismatches allowed between sgRNA spacer and binding site when searching for binding sites on the genome. Passed as `max.mismatch` argument to `sgRNAefficiencyMC()`. Default: `8`.
@@ -115,7 +115,7 @@ The pipeline writes the results of the `sgRNAefficiencyMC()` call to a .csv file
 
 
 # Downstream efficiency analyses
-The file Pneumococcal_sgRNA_library_efficiency_evaluation.pdf contains downstream analyses of the results of sgRNA_library_evaluation.R for seven penumococcal genomes, given the sgRNA library sgRNA-library_spn-D39V.csv of Liu _et al._ (2020). For the binding site results, see <https://www.veeninglab.com/crispri-seq>. Source code of the pdf: Pneumococcal_sgRNA_library_efficiency_evaluation.Rmd.
+The file **Pneumococcal_sgRNA_library_efficiency_evaluation.pdf** contains downstream analyses of the results of **sgRNA_library_evaluation.R** for seven penumococcal genomes, given the sgRNA library **sgRNA-library_spn-D39V.csv** of Liu _et al._ (2020). For the binding site results, see <https://www.veeninglab.com/crispri-seq>. Source code of the pdf: **Pneumococcal_sgRNA_library_efficiency_evaluation.Rmd**.
 
 
 # References
