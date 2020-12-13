@@ -3,7 +3,7 @@ Author: Vincent de Bakker
 See also: <https://www.veeninglab.com/crispri-seq>  
 Published as a part of: 
 * Liu, X., Kimmey, J.M., Matarazzo, L., de Bakker, V., Van Maele, L., Sirard, J.-C., Nizet, V., Veening, J.-W. (2020) Exploration of bacterial bottlenecks and _Streptococcus pneumoniae_ pathogenesis by CRISPRi-seq. _Cell Host & Microbe_. https://doi.org/10.1016/j.chom.2020.10.001
-* \<under review\>
+* \<in revision\>
 
 This repository contains R pipelines to (1) design a _de novo_ sgRNA library and (2) evaluate all potential binding sites of a given sgRNA library on any NCBI genome. Additionally, it contains an example of possible downstream expected efficiency analyses for the latter. 
 
