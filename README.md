@@ -51,7 +51,7 @@ Except the last six, this output comes from calling `CRISPRseek::searchHits()`.
 
 
 # _de novo_ sgRNA design
-The pipeline in the file **sgRNA_library_design.R** can be run to design an sgRNA library for the given genome and annotated features of choice. It identifies all possible candidate sgRNAs targeting the non-template strands of all features. Then it calls the core function `sgRNAefficiencyMC()` to identify for each of the candidate sgRNAs all possible binding sites on the genome. Using that data, the maximum off-target `reprAct` score is computed for each sgRNA, per feature. Finally, the pipeline first selects for each feature the candidate sgRNAs with the lowest expected maximum off-target repression activity (within some user-defined error range) and secondly, of that subset, the one sgRNA with the smallest `dist2CS`.  
+The pipeline in the file **sgRNA_library_design.R** can be run to design an sgRNA library for the given genome and annotated features of choice. It identifies all possible candidate sgRNAs targeting the non-template strands of all features. Then it calls the core function `sgRNAefficiencyMC()` to identify for each of the candidate sgRNAs all possible binding sites on the genome. Using that data, the maximum off-target `reprAct` score is computed for each sgRNA, per feature. Finally, the pipeline first selects for each feature the candidate sgRNAs with the lowest expected maximum off-target repression activity (within some user-defined error range) and secondly, of that subset, the one sgRNA with the smallest `dist2CS`. In addition, corresponding forward and reverse oligo's are designed for each selected sgRNA for library construction.  
 
 Candidate sgRNAs for every feature are found using `CRISPRseek::findgRNAs()` and genomes and annotations (GFF files) are imported from NCBI using the [biomartr package](https://cran.r-project.org/package=biomartr). The pipeline supports multicore processing.
 
@@ -72,6 +72,8 @@ Parameter | Description
 `reprAct_penalties` | character. Scoring system for repression activity estimation. One of `"qi.mean.per.region"`, `"qi"` or `"custom"`. Passed to the `penalties` argument of `sgRNAefficiencyMC()`, see function input description above for details. Default: `"qi.mean.per.region"`.
 `reprAct_custom_penalties` | numeric vector of length 20, or `NULL`. Custom mismatch penalties for repression activity estimation. Passed to the `custom.penalties` argument of `sgRNAefficiencyMC()`, see function input description above for details. Default: `NULL`.
 `errorRange_maxOffreprAct` | numeric. The error allowed on maximum off-target repression activity estimates. Candidate sgRNAs with an estimated repression activity within this range from the minimum found off-target repression activity all pass the specificity filter in selecting one optimal sgRNA per feature. Default is 1%: `0.01`.
+`oligoForwardOverhang` | character. Post-annealing 5'-3' overhang for the forward oligo to be compatible with the digested sgRNA backbone vector. Default: `TATA`. 
+`oligoReverseOverhang` | character. Post-annealing 5'-3' overhang for the reverse oligo to be compatible with the digested sgRNA backbone vector. Default: `AAAC`. 
 `spacer_length` | integer. Length of the sgRNA spacers to be designed in bp. Must be a strictly positive integer. Default: `20`. 
 `PAM` | character. Proto-spacer Adjacent Motif sequence. Default: `"NGG"`.
 `output_target_fasta` | logical. Whether to output a .fasta file containing all sequences for which sgRNAs are designed. Default: `TRUE`.
@@ -82,7 +84,7 @@ Parameter | Description
 The pipeline can return three files, depending on user input parameters: 
 1. A .fasta file with all sequences for which sgRNAs were designed.
 2. A .csv file with all identified binding sites for all identified candidate sgRNAs. Results as returned by `sgRNAefficiencyMC()`.
-3. A .csv file with one optimal sgRNA per annotated feature. Filtered version of number 2. Includes an extra column `maxOffreprAct`, indicating the maximum off-target `reprAct` score found for that sgRNA - binding site combination. 
+3. A .csv file with one optimal sgRNA per annotated feature. Filtered version of number 2. Includes an extra column `maxOffreprAct`, indicating the maximum off-target `reprAct` score found for that sgRNA - binding site combination. Also includes four extra columns containing forward (`forward`) and reverse (`reverse`) sgRNA base-pairing strands for sgRNA library construction, and forward (`oligoForward`) and reverse (`oligoReverse`) oligo's to be ordered to construct the annealed sgRNA library pool. 
 
 
 # sgRNA binding site evaluation
