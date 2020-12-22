@@ -16,6 +16,8 @@ max_mismatch <- 6
 reprAct_penalties <- "qi.mean.per.region"
 reprAct_custom_penalties <- NULL
 errorRange_maxOffreprAct <- 0.01
+oligoForwardOverhang <- "TATA"
+oligoReverseOverhang <- "AAAC"
 spacer_length <- 20
 PAM <- "NGG"
 output_target_fasta <- TRUE
@@ -192,6 +194,12 @@ if(output_optimized_list){
   }
   # collect optimal sgRNAs
   optimal_sgRNAs_df <- do.call(rbind, optimal_sgRNAs_ls)
+  # get forward and reverse spacer strands
+  optimal_sgRNAs_df$forward <- substr(optimal_sgRNAs_df$TargetSequence, 1, spacer_length)
+  optimal_sgRNAs_df$reverse <- (reverseComplement(DNAStringSet(optimal_sgRNAs_df$forward)))
+  # get forward and reverse oligo's
+  optimal_sgRNAs_df$oligoForward <- paste0(oligoForwardOverhang, optimal_sgRNAs_df$forward)
+  optimal_sgRNAs_df$oligoReverse <- paste0(oligoReverseOverhang, optimal_sgRNAs_df$reverse)
   # write to file
   write.csv(optimal_sgRNAs_df, file = paste0(wd, "/", accession_nr, "_maxmismatch", max_mismatch, "_sgRNAs_optimal.csv"))
 }
