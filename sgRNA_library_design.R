@@ -1,15 +1,20 @@
-#### (Optimal) sgRNA design per annotated feature in any NCBI genome ####
+#### (Optimal) sgRNA design per annotated feature in any genome ####
 # Author: Vincent de Bakker
 # Veening Lab, DMF, FBM, University of Lausanne, Switzerland
 # vincent.debakker@unil.ch
 ####
 
 #### 1. Settings ####
-wd <- "~" 
-fd <- wd
-path_ncbi_downloads <- wd
-accession_nr <- "GCA_003003495.1" 
-db <- "genbank"
+input_genome <- "GCA_003003495.1" # "C:/Users/vince/Documents/PhD/Data/Genomes/D39V/D39_JWV.gb"
+fundir <- "C:/Users/vince/Documents/PhD/Projects/CRISPRi-seq_sgRNA-library-design-eval/"
+outdir <- "C:/Users/vince/Documents/PhD/Projects/CRISPRi-seq_sgRNA-library-design-eval/testdir/"
+#
+path_ncbi_downloads <- "C:/Users/vince/Documents/PhD/Data/Genomes/" # ~
+# wd <- "~" 
+# fd <- wd
+# path_ncbi_downloads <- wd
+# accession_nr <- "GCA_003003495.1" 
+# db <- "genbank"
 feature_type <- "locus_tag"
 n_cores <- 1
 max_mismatch <- 6
@@ -26,9 +31,32 @@ output_optimized_list <- TRUE
 
 
 #### 2. Preliminaries ####
+# check inputs
+if(endsWith(input_genome, ".gb")){
+  input_type <- "gbfile"
+} else{
+  if(any(startsWith(input_genome, c("GCA", "GCF")))){
+    input_type <- "accessionnr"
+  } else{
+    stop("Input file should either be a .gb file or an NCBI genome assembly accession number (GCA_ or GCF_).")
+  }
+}
+if(!file.exists(paste0(fundir, "/function_sgRNAefficiencyMC.R"))){
+  stop("Please save the function file function_sgRNAefficiencyMC.R in the directory 'fundir'.")
+}
+if(sum(output_full_list, output_optimized_list, output_target_fasta) == 0){
+  stop("You have currently selected no output. Please set at least one of the output options to TRUE.")
+}
+if(input_type == "accessionnr"){
+  db <- switch(substr(input_genome, 1, 3), 
+               GCA = "genbank", 
+               GCF = "refseq")
+}
 # install required packages if needed
 required_packages_CRAN <- c("BiocManager")
-required_packages_BioC <- c("Biostrings", "biomaRt", "CRISPRseek")
+required_packages_BioC <- switch(input_type, 
+                                 gbfile = c("Biostrings", "genbankr", "CRISPRseek"), 
+                                 accessionnr = c("Biostrings", "biomartr", "CRISPRseek"))
 for(i in seq.int(required_packages_CRAN)){
   if(!requireNamespace(required_packages_CRAN[i], quietly = TRUE)){install.packages(required_packages_CRAN[i])}
 }
@@ -36,66 +64,84 @@ for(i in seq.int(required_packages_BioC)){
   if(!requireNamespace(required_packages_BioC[i], quietly = TRUE)){BiocManager::install(required_packages_BioC[i])}
 }
 # load packages
-library(Biostrings)
-library(biomartr)
-library(CRISPRseek)
+lapply(required_packages_BioC, library, character.only = TRUE)
 library(parallel)
 # load user-defined functions
-source(paste0(fd, "/function_sgRNAefficiencyMC.R"))
+source(paste0(fundir, "/function_sgRNAefficiencyMC.R"))
 
 
 #### 3. Get genome, features and extract feature sequences ####
-if(file.exists(paste0(path_ncbi_downloads, "/_ncbi_downloads/genomes/", accession_nr,"_genomic_", db, ".fna.gz"))){
-  genome_path <- paste0(path_ncbi_downloads, "/_ncbi_downloads/genomes/", accession_nr,"_genomic_", db, ".fna.gz")
-} else{
-  genome_path <- getGenome(db = db, 
-                           organism = accession_nr, 
-                           reference = FALSE, 
-                           path = paste0(path_ncbi_downloads, "/_ncbi_downloads/genomes/"))
-}
-genome <- read_genome(genome_path)
-if(file.exists(paste0(path_ncbi_downloads, "/_ncbi_downloads/annotation/", accession_nr, "_genomic_", db, ".gff.gz"))){
-  gffPath <- paste0(path_ncbi_downloads, "/_ncbi_downloads/annotation/", accession_nr, "_genomic_", db, ".gff.gz")
-} else{
-  gffPath <- getGFF(db = db, 
-                    organism = accession_nr, 
-                    reference = FALSE, 
-                    path = paste0(path_ncbi_downloads, "/_ncbi_downloads/annotation/"))
-}
-GFF <- read_gff(gffPath)
-# extract all features of type feature_type
-genes <- GFF[unlist(lapply(GFF$attribute, grepl, pattern = feature_type)), ]
-# replace split features with same attributes by first with total range for start and end
-#   e.g. annotions of "joined feature span" 
-#       (https://www.ncbi.nlm.nih.gov/genbank/genomesubmit_annotation/)
-if(any(duplicated(genes$attribute))){
-  # if any, then per unique attribute...
-  genes <- do.call(rbind, lapply(split(genes, genes$attribute), function(x){
-    # ...find total range of start and end
-    tmp_range <- range(x[, c("start", "end")])
-    # return only first row of attribute...
-    res <- x[1, ]
-    # ...with total chromosomal location span
-    res$start <- tmp_range[1]
-    res$end <- tmp_range[2]
-    res
+if(input_type == "accessionnr"){
+  if(file.exists(paste0(path_ncbi_downloads, "/_ncbi_downloads/genomes/", input_genome,"_genomic_", db, ".fna.gz"))){
+    genome_path <- paste0(path_ncbi_downloads, "/_ncbi_downloads/genomes/", input_genome,"_genomic_", db, ".fna.gz")
+  } else{
+    genome_path <- getGenome(db = db, 
+                             organism = input_genome, 
+                             reference = FALSE, 
+                             path = paste0(path_ncbi_downloads, "/_ncbi_downloads/genomes/"))
+  }
+  genome <- read_genome(genome_path)
+  if(file.exists(paste0(path_ncbi_downloads, "/_ncbi_downloads/annotation/", input_genome, "_genomic_", db, ".gff.gz"))){
+    gffPath <- paste0(path_ncbi_downloads, "/_ncbi_downloads/annotation/", input_genome, "_genomic_", db, ".gff.gz")
+  } else{
+    gffPath <- getGFF(db = db, 
+                      organism = input_genome, 
+                      reference = FALSE, 
+                      path = paste0(path_ncbi_downloads, "/_ncbi_downloads/annotation/"))
+  }
+  GFF <- read_gff(gffPath)
+  # extract all features of type feature_type
+  genes <- GFF[unlist(lapply(GFF$attribute, grepl, pattern = feature_type)), ]
+  # replace split features with same attributes by first with total range for start and end
+  #   e.g. annotions of "joined feature span" 
+  #       (https://www.ncbi.nlm.nih.gov/genbank/genomesubmit_annotation/)
+  if(any(duplicated(genes$attribute))){
+    # if any, then per unique attribute...
+    genes <- do.call(rbind, lapply(split(genes, genes$attribute), function(x){
+      # ...find total range of start and end
+      tmp_range <- range(x[, c("start", "end")])
+      # return only first row of attribute...
+      res <- x[1, ]
+      # ...with total chromosomal location span
+      res$start <- tmp_range[1]
+      res$end <- tmp_range[2]
+      res
+    }))
+  }
+  # find duplicates of same feature
+  genes_tags <- unlist(lapply(genes$attribute, function(x){
+    # add ";" at end in case feature_type is last attribute (regular expression requires ending character)
+    sub(paste0(".*?", feature_type, "=(.*?);.*"), "\\1", paste0(x, ";"))
   }))
+  # remove duplicates
+  genes <- genes[!duplicated(genes_tags), ]
+} else{
+  genome_gb <- readGenBank(input_genome)
+  genome <- getSeq(genome)
+  genes <- as.data.frame(genes(genome))
+  genes_tags <- genes$locus_tag
 }
-# find duplicates of same feature
-genes_tags <- unlist(lapply(genes$attribute, function(x){
-  # add ";" at end in case feature_type is last attribute (regular expression requires ending character)
-  sub(paste0(".*?", feature_type, "=(.*?);.*"), "\\1", paste0(x, ";"))
-}))
-# remove duplicates
-genes <- genes[!duplicated(genes_tags), ]
+genomeID <- switch(input_type, 
+                   accessionnr = input_genome, 
+                   gbfile = genome(genome_gb))
+chromID <- switch(input_type, 
+                  accessionnr = "seqid", 
+                  gbfile = "seqnames")
 # create DNAstringset with sequences
 genes_seq <- DNAStringSet(unlist(apply(genes, 1, function(x){
-  chrom <- grep(x["seqid"], names(genome))
+  chrom <- grep(x[chromID], names(genome))
   genome[[chrom]][x["start"]:x["end"]]
   })))
 names(genes_seq) <- unique(genes_tags)
 # write targets to fasta file if desired
-if(output_target_fasta){writeXStringSet(genes_seq, paste0(wd, "/", accession_nr, "_maxmismatch", max_mismatch, "_targets.fasta"))}
+if(output_target_fasta){writeXStringSet(genes_seq, paste0(outdir, "/", genomeID, "_maxmismatch", max_mismatch, "_targets.fasta"))}
+
+
+
+
+### CONTINUE WORKING HERE ####################
+
+
 
 
 #### 4. Find candidate sgRNAs ####
@@ -131,10 +177,10 @@ candidate_hits <- sgRNAefficiencyMC(sgRNAs = candidate_sgRNAs_uNT,
                                     allowed.mismatch.PAM = 1, 
                                     PAM.pattern = paste0(PAM, "$"), 
                                     no_cores = n_cores, 
-                                    outfile = paste0(wd, "/", accession_nr))
+                                    outfile = paste0(outdir, "/", input_genome))
 # write full, scored candidate sgRNA list to file if desired
 if(output_full_list){write.csv(candidate_hits, 
-                               paste0(wd, "/", accession_nr, "_maxmismatch", max_mismatch, "_candidate_sgRNAs_full.csv"), 
+                               paste0(outdir, "/", input_genome, "_maxmismatch", max_mismatch, "_candidate_sgRNAs_full.csv"), 
                                row.names = FALSE)}
 
 
@@ -201,5 +247,5 @@ if(output_optimized_list){
   optimal_sgRNAs_df$oligoForward <- paste0(oligoForwardOverhang, optimal_sgRNAs_df$forward)
   optimal_sgRNAs_df$oligoReverse <- paste0(oligoReverseOverhang, optimal_sgRNAs_df$reverse)
   # write to file
-  write.csv(optimal_sgRNAs_df, file = paste0(wd, "/", accession_nr, "_maxmismatch", max_mismatch, "_sgRNAs_optimal.csv"))
+  write.csv(optimal_sgRNAs_df, file = paste0(outdir, "/", input_genome, "_maxmismatch", max_mismatch, "_sgRNAs_optimal.csv"))
 }
