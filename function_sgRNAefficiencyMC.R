@@ -64,7 +64,7 @@ sgRNAefficiencyMC <- function(sgRNAs, genes, genome,
       # Identify all binding sites per sgRNA
       message("Starting parallel binding site identification...")
       ## per sgRNA, per genome
-      lib_hits <- do.call(rbind, parLapply(cl, names(sgRNAs), function(y){
+      invisible(capture.output(lib_hits <- do.call(rbind, parLapply(cl, names(sgRNAs), function(y){
         do.call(rbind, lapply(seq.int(genome), function(x){
           searchHits(gRNAs = sgRNAs[names(sgRNAs) == y],
                      seqs = genome[[x]], seqname = names(genome)[x], 
@@ -72,11 +72,11 @@ sgRNAefficiencyMC <- function(sgRNAs, genes, genome,
                                       "_sgRNA-", y, "_genome-", names(genome)[x]), 
                      ...)
         }))
-      }))
+      }))))
     } else{ # forking
       # Identify all binding sites per sgRNA
       message("Starting parallel binding site identification...")
-      lib_hits <- do.call(rbind, mclapply(names(sgRNAs), function(y){
+      invisible(capture.output(lib_hits <- do.call(rbind, mclapply(names(sgRNAs), function(y){
         do.call(rbind, lapply(seq.int(genome), function(x){
           searchHits(gRNAs = sgRNAs[names(sgRNAs) == y],
                      seqs = genome[[x]], seqname = names(genome)[x], 
@@ -84,18 +84,18 @@ sgRNAefficiencyMC <- function(sgRNAs, genes, genome,
                                       "_sgRNA-", y, "_genome-", names(genome)[x]), 
                      ...)
         }))
-      }, mc.cores = no_cores))
+      }, mc.cores = no_cores))))
     }
   } else{ # Do not parallelize
     # Identify all binding sites
     message("Starting binding site identification...")
-    lib_hits <- do.call(rbind, lapply(seq.int(genome), function(x){
+    invisible(capture.output(lib_hits <- do.call(rbind, lapply(seq.int(genome), function(x){
       searchHits(gRNAs = sgRNAs,
                  seqs = genome[[x]], seqname = names(genome)[x], 
                  outfile = paste0(outfile, 
                                   "_genome-", names(genome)[x]), 
                  ...)
-    }))
+    }))))
   }
   
   # Get NT CDS per hit

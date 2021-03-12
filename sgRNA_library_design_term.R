@@ -1,3 +1,6 @@
+#!/usr/bin/Rscript
+argsIN <- commandArgs(trailingOnly = TRUE)
+
 #### (Optimal) sgRNA design per annotated feature in any genome ####
 # Author: Vincent de Bakker
 # Veening Lab, DMF, FBM, University of Lausanne, Switzerland
@@ -5,12 +8,13 @@
 ####
 
 #### 1. Settings ####
-input_genome <- "C:/Users/vince/Documents/PhD/Data/Genomes/TIGR4/20210311_TIGR4_AE005672.3.gb" # "GCA_003003495.1" "C:/Users/vince/Documents/PhD/Data/Genomes/D39V/D39_JWV.gb"
-fundir <- "C:/Users/vince/Documents/PhD/Projects/CRISPRi-seq_sgRNA-library-design-eval/"
-outdir <- "C:/Users/vince/Documents/PhD/Projects/CRISPRi-seq_sgRNA-library-design-eval/testdir/"
-n_cores <- 3
+input_genome <- argsIN[1] # "C:/Users/vince/Documents/PhD/Data/Genomes/TIGR4/20210311_TIGR4_AE005672.3.gb" # "GCA_003003495.1" "C:/Users/vince/Documents/PhD/Data/Genomes/D39V/D39_JWV.gb"
+fundir <- argsIN[2] # "C:/Users/vince/Documents/PhD/Projects/CRISPRi-seq_sgRNA-library-design-eval/"
+outdir <- argsIN[3] #"C:/Users/vince/Documents/PhD/Projects/CRISPRi-seq_sgRNA-library-design-eval/testdir/"
+n_cores <- as.integer(argsIN[4]) # 1
 #
-path_ncbi_downloads <- "C:/Users/vince/Documents/PhD/Data/Genomes/" # ~
+path_ncbi_downloads <- argsIN[5] # "C:/Users/vince/Documents/PhD/Data/Genomes/" # ~
+#
 feature_type <- "locus_tag"
 max_mismatch <- 6
 reprAct_penalties <- "qi.mean.per.region"
@@ -133,7 +137,7 @@ genomeID <- switch(input_type,
 genes_seq <- DNAStringSet(unlist(apply(genes, 1, function(x){
   chrom <- grep(x["seqid"], names(genome))
   genome[[chrom]][x["start"]:x["end"]]
-  })))
+})))
 names(genes_seq) <- unique(genes_tags)
 # write targets to fasta file if desired
 if(output_target_fasta){writeXStringSet(genes_seq, paste0(outdir, "/", genomeID, "_maxmismatch", max_mismatch, "_targets.fasta"))}
@@ -152,7 +156,7 @@ if(platform == "windows"){
                                 gRNA.size = spacer_length)
 } else{
   # looping through index instead of sequence retains feature names
-  candidate_sgRNAs <- do.call(c, mclapply(seq.int(genes_seq), function(gene){
+  candidate_sgRNAs <- do.call(c, mclapply(seq.int(genes_seq[1:10]), function(gene){
     findgRNAs(genes_seq[gene], 
               annotatePaired = FALSE, 
               n.cores.max = 1, 
@@ -193,7 +197,7 @@ candidate_hits <- sgRNAefficiencyMC(sgRNAs = candidate_sgRNAs_uNT,
 candidate_hits$chrom <- gsub(";", "", candidate_hits$chrom)
 # write full, scored candidate sgRNA list to file if desired
 if(output_full_list){write.csv(candidate_hits, 
-                               paste0(outdir, "/", genomeID, "_maxmismatch", max_mismatch, "_candidate_sgRNAs_full.csv"), 
+                               paste0(outdir, "/", genomeID, "_maxmismatch", max_mismatch, "_candidate_sgRNAs_full_test.csv"), 
                                row.names = FALSE)}
 
 
