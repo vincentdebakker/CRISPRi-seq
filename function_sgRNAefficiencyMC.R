@@ -15,11 +15,8 @@ sgRNAefficiencyMC <- function(sgRNAs, genes, genome,
   require(CRISPRseek)
   require(parallel)
   
-  # Retrieve all gene names from GFF input
-  tags <- unlist(lapply(genes$attribute, function(x){
-    # add ";" at end in case locus_tag is last attribute (regular expression requires ending character)
-    sub(paste0(".*?", name_by, "=(.*?);.*"), "\\1", paste0(x, ";"))
-  }))
+  # Retrieve all gene names 
+  tags <- genes$locus_tag
   
   # Checks
   if(any(duplicated(tags))){
@@ -45,34 +42,51 @@ sgRNAefficiencyMC <- function(sgRNAs, genes, genome,
     stop("Please set no_cores to an integer of length 1.")
   }
   
+  # for forking or socket parallelization
+  if(n_cores > 1){platform <- .Platform$OS.type}
+  
   # Binding site identification
-  if(no_cores != 1){ # Parallelize or not as appropriate
-    message("Making cluster...")
-    # Start local socket cluster 
-    cl <- makeCluster(no_cores)
-    # export required objects to every core
-    clusterExport(cl, c("sgRNAs", 
-                        "genes", # for NT_gene, later
-                        "tags",  # for NT_gene, later
-                        unlist(lapply(match.call(expand.dots = FALSE)$..., all.vars)), 
-                        "genome", 
-                        "outfile"), 
-                  envir = environment()) # from within-function environment
-    # load required packages on every core
-    clusterEvalQ(cl, library(CRISPRseek))
-    # Identify all binding sites per sgRNA
-    message("Starting parallel binding site identification...")
-    ## per sgRNA, per genome
-    lib_hits <- do.call(rbind, parLapply(cl, names(sgRNAs), function(y){
-      do.call(rbind, lapply(seq.int(genome), function(x){
-        searchHits(gRNAs = sgRNAs[names(sgRNAs) == y],
-                   seqs = genome[[x]], seqname = names(genome)[x], 
-                   outfile = paste0(outfile, 
-                                    "_sgRNA-", y, "_genome-", names(genome)[x]), 
-                   ...)
+  if(no_cores != 1){ # Parallelize (or not as appropriate)
+    if(platform == "windows"){
+      message("Making cluster...")
+      # Start local socket cluster 
+      cl <- makeCluster(no_cores)
+      # export required objects to every core
+      clusterExport(cl, c("sgRNAs", 
+                          "genes", # for NT_gene, later
+                          "tags",  # for NT_gene, later
+                          unlist(lapply(match.call(expand.dots = FALSE)$..., all.vars)), 
+                          "genome", 
+                          "outfile"), 
+                    envir = environment()) # from within-function environment
+      # load required packages on every core
+      clusterEvalQ(cl, library(CRISPRseek))
+      # Identify all binding sites per sgRNA
+      message("Starting parallel binding site identification...")
+      ## per sgRNA, per genome
+      lib_hits <- do.call(rbind, parLapply(cl, names(sgRNAs), function(y){
+        do.call(rbind, lapply(seq.int(genome), function(x){
+          searchHits(gRNAs = sgRNAs[names(sgRNAs) == y],
+                     seqs = genome[[x]], seqname = names(genome)[x], 
+                     outfile = paste0(outfile, 
+                                      "_sgRNA-", y, "_genome-", names(genome)[x]), 
+                     ...)
+        }))
       }))
-    }))
-  } else{ # Parallelize or not as appropriate
+    } else{ # forking
+      # Identify all binding sites per sgRNA
+      message("Starting parallel binding site identification...")
+      lib_hits <- do.call(rbind, mclapply(names(sgRNAs), function(y){
+        do.call(rbind, lapply(seq.int(genome), function(x){
+          searchHits(gRNAs = sgRNAs[names(sgRNAs) == y],
+                     seqs = genome[[x]], seqname = names(genome)[x], 
+                     outfile = paste0(outfile, 
+                                      "_sgRNA-", y, "_genome-", names(genome)[x]), 
+                     ...)
+        }))
+      }, mc.cores = no_cores))
+    }
+  } else{ # Do not parallelize
     # Identify all binding sites
     message("Starting binding site identification...")
     lib_hits <- do.call(rbind, lapply(seq.int(genome), function(x){
@@ -91,41 +105,79 @@ sgRNAefficiencyMC <- function(sgRNAs, genes, genome,
   message("Identifying gene hits per sgRNA...")
   # NB force list outcome with lapply, do not use apply
   if(no_cores != 1){ # if parallel
-    NT_gene <- parLapply(cl, seq.int(nrow(lib_hits)), function(x){
-      # find overlapping genes per site, if any
-      tmp_i <- as.numeric(lib_hits[x, "chromStart"]) - genes$end <= 0 & 
-        as.numeric(lib_hits[x, "chromEnd"]) - genes$start >= 0 & 
-        as.character(lib_hits[x, "strand"]) != genes$strand & 
-        # also look on the right chromosome
-        unlist(lapply(genes$seqid, grepl, x = as.character(lib_hits[x, "chrom"])))
-      # add details of gene hits, if any
-      if(any(tmp_i)){
-        # could be multiple genes that are overlapped by a site
-        do.call(rbind, lapply(which(tmp_i), function(y){
-          if(as.numeric(lib_hits[x, "chromStart"]) < genes$start[y]){
-            coverPart <- switch(genes$strand[y], 
-                                `+` = "5-tail", 
-                                `-` = "3-PAM")
-            coverSize <- as.numeric(lib_hits[x, "chromEnd"]) - genes$start[y] + 1
-          } else{
-            if(as.numeric(lib_hits[x, "chromEnd"]) > genes$end[y]){
+    if(platform == "windows"){
+      NT_gene <- parLapply(cl, seq.int(nrow(lib_hits)), function(x){
+        # find overlapping genes per site, if any
+        tmp_i <- as.numeric(lib_hits[x, "chromStart"]) - genes$end <= 0 & 
+          as.numeric(lib_hits[x, "chromEnd"]) - genes$start >= 0 & 
+          as.character(lib_hits[x, "strand"]) != genes$strand & 
+          # also look on the right chromosome
+          unlist(lapply(genes$seqid, grepl, x = as.character(lib_hits[x, "chrom"])))
+        # add details of gene hits, if any
+        if(any(tmp_i)){
+          # could be multiple genes that are overlapped by a site
+          do.call(rbind, lapply(which(tmp_i), function(y){
+            if(as.numeric(lib_hits[x, "chromStart"]) < genes$start[y]){
               coverPart <- switch(genes$strand[y], 
-                                  `+` = "3-PAM", 
-                                  `-` = "5-tail")
-              coverSize <- genes$end[y] - as.numeric(lib_hits[x, "chromStart"]) + 1
+                                  `+` = "5-tail", 
+                                  `-` = "3-PAM")
+              coverSize <- as.numeric(lib_hits[x, "chromEnd"]) - genes$start[y] + 1
             } else{
-              coverPart <- "complete"
-              coverSize <- 23
+              if(as.numeric(lib_hits[x, "chromEnd"]) > genes$end[y]){
+                coverPart <- switch(genes$strand[y], 
+                                    `+` = "3-PAM", 
+                                    `-` = "5-tail")
+                coverSize <- genes$end[y] - as.numeric(lib_hits[x, "chromStart"]) + 1
+              } else{
+                coverPart <- "complete"
+                coverSize <- 23
+              }
             }
-          }
-          # return details if gene hits for site
-          matrix(c(tags[y], coverPart, coverSize), ncol = 3)
-        }))
-      } else{
-        # return NAs if no gene hits for site
-        matrix(NA, ncol = 3, nrow = 1)
-      }
-    })
+            # return details if gene hits for site
+            matrix(c(tags[y], coverPart, coverSize), ncol = 3)
+          }))
+        } else{
+          # return NAs if no gene hits for site
+          matrix(NA, ncol = 3, nrow = 1)
+        }
+      })
+    } else{ # forking
+      NT_gene <- mclapply(seq.int(nrow(lib_hits)), function(x){
+        # find overlapping genes per site, if any
+        tmp_i <- as.numeric(lib_hits[x, "chromStart"]) - genes$end <= 0 & 
+          as.numeric(lib_hits[x, "chromEnd"]) - genes$start >= 0 & 
+          as.character(lib_hits[x, "strand"]) != genes$strand & 
+          # also look on the right chromosome
+          unlist(lapply(genes$seqid, grepl, x = as.character(lib_hits[x, "chrom"])))
+        # add details of gene hits, if any
+        if(any(tmp_i)){
+          # could be multiple genes that are overlapped by a site
+          do.call(rbind, lapply(which(tmp_i), function(y){
+            if(as.numeric(lib_hits[x, "chromStart"]) < genes$start[y]){
+              coverPart <- switch(genes$strand[y], 
+                                  `+` = "5-tail", 
+                                  `-` = "3-PAM")
+              coverSize <- as.numeric(lib_hits[x, "chromEnd"]) - genes$start[y] + 1
+            } else{
+              if(as.numeric(lib_hits[x, "chromEnd"]) > genes$end[y]){
+                coverPart <- switch(genes$strand[y], 
+                                    `+` = "3-PAM", 
+                                    `-` = "5-tail")
+                coverSize <- genes$end[y] - as.numeric(lib_hits[x, "chromStart"]) + 1
+              } else{
+                coverPart <- "complete"
+                coverSize <- 23
+              }
+            }
+            # return details if gene hits for site
+            matrix(c(tags[y], coverPart, coverSize), ncol = 3)
+          }))
+        } else{
+          # return NAs if no gene hits for site
+          matrix(NA, ncol = 3, nrow = 1)
+        }
+      }, mc.cores = no_cores)
+    }
   } else{ # if not parallel
     NT_gene <- lapply(seq.int(nrow(lib_hits)), function(x){
       # find overlapping genes per site, if any
@@ -179,16 +231,25 @@ sgRNAefficiencyMC <- function(sgRNAs, genes, genome,
   if(reprAct){
     message("Calculating repression activity per site...")
     if(no_cores != 1){
-      clusterExport(cl, c("penalties"), envir = environment())
-      # Get retained repression per hit
-      repr_act <- parApply(cl, lib_hits[, 1:20], 1, function(x){
-        prod(penalties[x == 1]) # product of empty set is 1 by definition (OK for 0 mm)
-      })
+      
+      if(platform == "windows"){
+        clusterExport(cl, c("penalties"), envir = environment())
+        # Get retained repression per hit
+        repr_act <- unlist(parLapply(cl, 1:nrow(lib_hits), function(x){
+          # product of empty set is 1 by definition (OK for 0 mm)
+          prod(penalties[lib_hits[x, 1:20] == 1])
+        }))
+      } else{
+        # Get retained repression per hit
+        repr_act <- unlist(mclapply(1:nrow(lib_hits), function(x){
+          prod(penalties[lib_hits[x, 1:20] == 1])
+        }, mc.cores = no_cores)) 
+      }
     } else{
       # Get retained repression per hit
-      repr_act <- apply(lib_hits[, 1:20], 1, function(x){
-        prod(penalties[x == 1]) # product of empty set is 1 by definition (OK for 0 mm)
-      })
+      repr_act <- unlist(lapply(1:nrow(lib_hits), function(x){
+        prod(penalties[lib_hits[x, 1:20] == 1])
+      }))
     }
     # add to data frame
     lib_hits$reprAct <- repr_act
@@ -200,53 +261,85 @@ sgRNAefficiencyMC <- function(sgRNAs, genes, genome,
     # Get distance to start codon per hit
     #    normalize within-gene distances with feature scaling
     feat_scale <- function(x, min, max){(x - min) / (max - min)}
+    
+    
+    
     if(no_cores != 1){ # if parallel
-      dist_SC <- parApply(cl, lib_hits, 1, function(x){
-        if(!is.na(x["NTgene"])){
-          tmp_range <- genes[match(x["NTgene"], tags), c("start", "end")]
-          # max is end CDS - 22 nt for binding first nt of PAM+spacer (chromStart, strand does not matter)
-          #    also partial overlap (coverPart != "complete") dist_SC should always be set to [0,1]
-          ifelse(genes$strand[match(x["NTgene"], tags)] == "+", 
-                 # strand matters: on "-" strand, start of gene is on 3-prime end so invert distance
-                 pmax(0, pmin(1, 
-                              feat_scale(as.numeric(x["chromStart"]), 
-                                         tmp_range[1], 
-                                         tmp_range[2] - 22))), 
-                 1 - pmax(0, pmin(1, 
-                                  feat_scale(as.numeric(x["chromStart"]), 
-                                             tmp_range[1], 
-                                             tmp_range[2] - 22))))
-        } else{
-          NA
-        }
-      }) 
+      if(platform == "windows"){
+        # if bug: check if sgRNAs object loaded on all nodes
+        dist_SC <- unlist(parLapply(cl, 1:nrow(lib_hits), function(x){
+          if(!is.na(lib_hits[x, "NTgene"])){
+            tmp_range <- genes[match(lib_hits[x, "NTgene"], tags), c("start", "end")]
+            # max is end CDS - 22 nt for binding first nt of PAM+spacer (chromStart, strand does not matter)
+            #    also partial overlap (coverPart != "complete") dist_SC should always be set to [0,1]
+            #    take width(sgRNAs)[1] - 1 instead of 22 nt for flexibility in sgRNA size, compatible with searchHits
+            ifelse(genes$strand[match(lib_hits[x, "NTgene"], tags)] == "+", 
+                   # strand matters: on "-" strand, start of gene is on 3-prime end so invert distance
+                   pmax(0, pmin(1, 
+                                feat_scale(as.numeric(lib_hits[x, "chromStart"]), 
+                                           tmp_range[1], 
+                                           tmp_range[2] - (width(sgRNAs)[1] - 1)))), 
+                   1 - pmax(0, pmin(1, 
+                                    feat_scale(as.numeric(lib_hits[x, "chromStart"]), 
+                                               tmp_range[1], 
+                                               tmp_range[2] - (width(sgRNAs)[1] - 1)))))
+            
+          } else{
+            NA
+          }
+        }))
+      } else{
+        dist_SC <- unlist(mclapply(1:nrow(lib_hits), function(x){
+          if(!is.na(lib_hits[x, "NTgene"])){
+            tmp_range <- genes[match(lib_hits[x, "NTgene"], tags), c("start", "end")]
+            # max is end CDS - 22 nt for binding first nt of PAM+spacer (chromStart, strand does not matter)
+            #    also partial overlap (coverPart != "complete") dist_SC should always be set to [0,1]
+            #    take width(sgRNAs)[1] - 1 instead of 22 nt for flexibility in sgRNA size, compatible with searchHits
+            ifelse(genes$strand[match(lib_hits[x, "NTgene"], tags)] == "+", 
+                   # strand matters: on "-" strand, start of gene is on 3-prime end so invert distance
+                   pmax(0, pmin(1, 
+                                feat_scale(as.numeric(lib_hits[x, "chromStart"]), 
+                                           tmp_range[1], 
+                                           tmp_range[2] - (width(sgRNAs)[1] - 1)))), 
+                   1 - pmax(0, pmin(1, 
+                                    feat_scale(as.numeric(lib_hits[x, "chromStart"]), 
+                                               tmp_range[1], 
+                                               tmp_range[2] - (width(sgRNAs)[1] - 1)))))
+            
+          } else{
+            NA
+          }
+        }, mc.cores = no_cores))
+      }
     } else{ # if not parallel
-      dist_SC <- apply(lib_hits, 1, function(x){
-        if(!is.na(x["NTgene"])){
-          tmp_range <- genes[match(x["NTgene"], tags), c("start", "end")]
+      dist_SC <- unlist(lapply(1:nrow(lib_hits), function(x){
+        if(!is.na(lib_hits[x, "NTgene"])){
+          tmp_range <- genes[match(lib_hits[x, "NTgene"], tags), c("start", "end")]
           # max is end CDS - 22 nt for binding first nt of PAM+spacer (chromStart, strand does not matter)
           #    also partial overlap (coverPart != "complete") dist_SC should always be set to [0,1]
-          ifelse(genes$strand[match(x["NTgene"], tags)] == "+", 
+          #    take width(sgRNAs)[1] - 1 instead of 22 nt for flexibility in sgRNA size, compatible with searchHits
+          ifelse(genes$strand[match(lib_hits[x, "NTgene"], tags)] == "+", 
                  # strand matters: on "-" strand, start of gene is on 3-prime end so invert distance
                  pmax(0, pmin(1, 
-                              feat_scale(as.numeric(x["chromStart"]), 
+                              feat_scale(as.numeric(lib_hits[x, "chromStart"]), 
                                          tmp_range[1], 
-                                         tmp_range[2] - 22))), 
+                                         tmp_range[2] - (width(sgRNAs)[1] - 1)))), 
                  1 - pmax(0, pmin(1, 
-                                  feat_scale(as.numeric(x["chromStart"]), 
+                                  feat_scale(as.numeric(lib_hits[x, "chromStart"]), 
                                              tmp_range[1], 
-                                             tmp_range[2] - 22))))
+                                             tmp_range[2] - (width(sgRNAs)[1] - 1)))))
+          
         } else{
           NA
         }
-      })
+      }))
     }
     # add to data frame
     lib_hits$dist2SC <- unlist(dist_SC)
   }
   
   # stop cluster if required
-  if(no_cores != 1){
+  if(no_cores != 1 & platform == "windows"){
     message("Closing cluster")
     stopCluster(cl)
   }

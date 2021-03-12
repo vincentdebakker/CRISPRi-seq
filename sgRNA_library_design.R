@@ -5,18 +5,13 @@
 ####
 
 #### 1. Settings ####
-input_genome <- "GCA_003003495.1" # "C:/Users/vince/Documents/PhD/Data/Genomes/D39V/D39_JWV.gb"
+input_genome <- "C:/Users/vince/Documents/PhD/Data/Genomes/TIGR4/20210311_TIGR4_AE005672.3.gb" # "GCA_003003495.1" "C:/Users/vince/Documents/PhD/Data/Genomes/D39V/D39_JWV.gb"
 fundir <- "C:/Users/vince/Documents/PhD/Projects/CRISPRi-seq_sgRNA-library-design-eval/"
 outdir <- "C:/Users/vince/Documents/PhD/Projects/CRISPRi-seq_sgRNA-library-design-eval/testdir/"
+n_cores <- 3
 #
 path_ncbi_downloads <- "C:/Users/vince/Documents/PhD/Data/Genomes/" # ~
-# wd <- "~" 
-# fd <- wd
-# path_ncbi_downloads <- wd
-# accession_nr <- "GCA_003003495.1" 
-# db <- "genbank"
 feature_type <- "locus_tag"
-n_cores <- 1
 max_mismatch <- 6
 reprAct_penalties <- "qi.mean.per.region"
 reprAct_custom_penalties <- NULL
@@ -47,11 +42,14 @@ if(!file.exists(paste0(fundir, "/function_sgRNAefficiencyMC.R"))){
 if(sum(output_full_list, output_optimized_list, output_target_fasta) == 0){
   stop("You have currently selected no output. Please set at least one of the output options to TRUE.")
 }
+if(n_cores < 1 | !is.numeric(n_cores)){stop("n_cores should be an integer of 1 or higher.")}
 if(input_type == "accessionnr"){
   db <- switch(substr(input_genome, 1, 3), 
                GCA = "genbank", 
                GCF = "refseq")
 }
+# detect OS
+platform <- .Platform$OS.type
 # install required packages if needed
 required_packages_CRAN <- c("BiocManager")
 required_packages_BioC <- switch(input_type, 
@@ -109,27 +107,31 @@ if(input_type == "accessionnr"){
     }))
   }
   # find duplicates of same feature
-  genes_tags <- unlist(lapply(genes$attribute, function(x){
-    # add ";" at end in case feature_type is last attribute (regular expression requires ending character)
-    sub(paste0(".*?", feature_type, "=(.*?);.*"), "\\1", paste0(x, ";"))
-  }))
+  # genes_tags <- unlist(lapply(genes$attribute, function(x){
+  #   # add ";" at end in case feature_type is last attribute (regular expression requires ending character)
+  #   sub(paste0(".*?", feature_type, "=(.*?);.*"), "\\1", paste0(x, ";"))
+  # }))
+  ## add ";" at end in case feature_type is last attribute (regular expression requires ending character)
+  genes$locus_tag <- sub(paste0(".*?", feature_type, "=(.*?);.*"), "\\1", paste0(genes$attribute, ";"))
   # remove duplicates
   genes <- genes[!duplicated(genes_tags), ]
+  gene_tags <- genes$locus_tag
 } else{
   genome_gb <- readGenBank(input_genome)
-  genome <- getSeq(genome)
-  genes <- as.data.frame(genes(genome))
+  genome <- getSeq(genome_gb)
+  genes <- as.data.frame(genes(genome_gb))
+  genes$seqid <- genes$seqnames
   genes_tags <- genes$locus_tag
 }
 genomeID <- switch(input_type, 
                    accessionnr = input_genome, 
-                   gbfile = genome(genome_gb))
-chromID <- switch(input_type, 
-                  accessionnr = "seqid", 
-                  gbfile = "seqnames")
+                   gbfile = genome_gb@version["accession.version"])
+# chromID <- switch(input_type, 
+#                   accessionnr = "seqid", 
+#                   gbfile = "seqnames")
 # create DNAstringset with sequences
 genes_seq <- DNAStringSet(unlist(apply(genes, 1, function(x){
-  chrom <- grep(x[chromID], names(genome))
+  chrom <- grep(x["seqid"], names(genome))
   genome[[chrom]][x["start"]:x["end"]]
   })))
 names(genes_seq) <- unique(genes_tags)
@@ -137,30 +139,39 @@ names(genes_seq) <- unique(genes_tags)
 if(output_target_fasta){writeXStringSet(genes_seq, paste0(outdir, "/", genomeID, "_maxmismatch", max_mismatch, "_targets.fasta"))}
 
 
-
-
-### CONTINUE WORKING HERE ####################
-
-
-
-
 #### 4. Find candidate sgRNAs ####
-if(n_cores < 1 | !is.numeric(n_cores)){stop("n_cores should be an integer of 1 or higher.")}
-candidate_sgRNAs <- findgRNAs(genes_seq, annotatePaired = FALSE, 
-                              n.cores.max = n_cores, 
-                              enable.multicore = ifelse(n_cores > 1, TRUE, FALSE), 
-                              PAM = PAM, 
-                              PAM.size = nchar(PAM), 
-                              gRNA.size = spacer_length)
-# retain only unique sgRNAs targeting NT strand (antisense)
+## identify all possible sgRNAs within annotated genetic elements
+# multi-core socket in windows, forking otherwise
+if(platform == "windows"){
+  # socket built-in for function
+  candidate_sgRNAs <- findgRNAs(genes_seq, annotatePaired = FALSE, 
+                                n.cores.max = n_cores, 
+                                enable.multicore = ifelse(n_cores > 1, TRUE, FALSE), 
+                                PAM = PAM, 
+                                PAM.size = nchar(PAM), 
+                                gRNA.size = spacer_length)
+} else{
+  # looping through index instead of sequence retains feature names
+  candidate_sgRNAs <- do.call(c, mclapply(seq.int(genes_seq), function(gene){
+    findgRNAs(genes_seq[gene], 
+              annotatePaired = FALSE, 
+              n.cores.max = 1, 
+              enable.multicore = FALSE, 
+              PAM = PAM, 
+              PAM.size = nchar(PAM), 
+              gRNA.size = spacer_length)
+  }, mc.cores = n_cores))
+}
+## retain only unique sgRNAs targeting NT strand (antisense)
 # get direction (r/f) of every sgRNA
 sgRNAdir <- substr(names(candidate_sgRNAs), nchar(names(candidate_sgRNAs)), nchar(names(candidate_sgRNAs)))
 # get target of every sgRNA
 targetnames <- sub("\\_gR[0-9]+[rf]$", "", names(candidate_sgRNAs))
 # get name of every gene in GFF genes list
-genes_tags_unique <- sub(paste0(".*?", feature_type, "=(.*?);.*"), "\\1", paste0(genes$attribute, ";"))
+#genes_tags_unique <- sub(paste0(".*?", feature_type, "=(.*?);.*"), "\\1", paste0(genes$attribute, ";"))
 # get strand of target gene
-antisensedir <- ifelse(genes$strand[match(targetnames, genes_tags_unique)] == "+", "r", "f")
+antisensedir <- ifelse(genes$strand[match(targetnames, genes_tags)] == "+", "r", "f")
+#antisensedir <- ifelse(genes$strand[match(targetnames, genes_tags_unique)] == "+", "r", "f")
 # keep only uniques of sgRNAs targeting antisense (NT) strand
 candidate_sgRNAs_uNT <- unique(candidate_sgRNAs[sgRNAdir == antisensedir])
 
@@ -177,10 +188,10 @@ candidate_hits <- sgRNAefficiencyMC(sgRNAs = candidate_sgRNAs_uNT,
                                     allowed.mismatch.PAM = 1, 
                                     PAM.pattern = paste0(PAM, "$"), 
                                     no_cores = n_cores, 
-                                    outfile = paste0(outdir, "/", input_genome))
+                                    outfile = paste0(outdir, "/", genomeID))
 # write full, scored candidate sgRNA list to file if desired
 if(output_full_list){write.csv(candidate_hits, 
-                               paste0(outdir, "/", input_genome, "_maxmismatch", max_mismatch, "_candidate_sgRNAs_full.csv"), 
+                               paste0(outdir, "/", genomeID, "_maxmismatch", max_mismatch, "_candidate_sgRNAs_full.csv"), 
                                row.names = FALSE)}
 
 
@@ -190,31 +201,54 @@ if(output_optimized_list){
   ON_candidate_hits <- candidate_hits[candidate_hits$n.mismatch == 0, ]
   # if multi core
   if(n_cores > 1){
-    # start cluster
-    cl <- makeCluster(n_cores)
-    clusterExport(cl, c("candidate_hits", "errorRange_maxOffreprAct"))
-    # per feature
-    optimal_sgRNAs_ls <- parLapply(cl, split(ON_candidate_hits, ON_candidate_hits$NTgene), function(target){
-      # get maximum detected off-target effect per candidate sgRNA
-      maxOffreprAct <- unlist(lapply(target$name, function(candidate){
-        # get all binding sites
-        allhits_candidate <- candidate_hits[candidate_hits$name %in% candidate, ]
-        # get off-target row IDs
-        offID <- !allhits_candidate$NTgene %in% target$NTgene[1]
-        # if off-targets, give max reprAct, 0 otherwise (i.e. worst off-target effect)
-        ifelse(sum(offID) > 0, 
-               max(allhits_candidate[offID, "reprAct"]), 
-               0)
-      }))
-      # add max expected off-target effect to data frame
-      target$maxOffreprAct <- maxOffreprAct
-      # select sgRNA with smallest maxOffreprAct + errorRange_maxOffreprAct
-      opt_tmp <- target[target$maxOffreprAct <= (min(maxOffreprAct) + errorRange_maxOffreprAct), ]
-      # if multiple, select on smallest dist2SC
-      opt_tmp[which.min(opt_tmp$dist2SC), ]
-    })
-    # shut down workers
-    stopCluster(cl)
+    if(platform == "windows"){
+      # start cluster
+      cl <- makeCluster(n_cores)
+      clusterExport(cl, c("candidate_hits", "errorRange_maxOffreprAct"))
+      # per feature
+      optimal_sgRNAs_ls <- parLapply(cl, split(ON_candidate_hits, ON_candidate_hits$NTgene), function(target){
+        # get maximum detected off-target effect per candidate sgRNA
+        maxOffreprAct <- unlist(lapply(target$name, function(candidate){
+          # get all binding sites
+          allhits_candidate <- candidate_hits[candidate_hits$name %in% candidate, ]
+          # get off-target row IDs
+          offID <- !allhits_candidate$NTgene %in% target$NTgene[1]
+          # if off-targets, give max reprAct, 0 otherwise (i.e. worst off-target effect)
+          ifelse(sum(offID) > 0, 
+                 max(allhits_candidate[offID, "reprAct"]), 
+                 0)
+        }))
+        # add max expected off-target effect to data frame
+        target$maxOffreprAct <- maxOffreprAct
+        # select sgRNA with smallest maxOffreprAct + errorRange_maxOffreprAct
+        opt_tmp <- target[target$maxOffreprAct <= (min(maxOffreprAct) + errorRange_maxOffreprAct), ]
+        # if multiple, select on smallest dist2SC
+        opt_tmp[which.min(opt_tmp$dist2SC), ]
+      })
+      # shut down workers
+      stopCluster(cl)
+    } else{
+      # per feature
+      optimal_sgRNAs_ls <- mclapply(split(ON_candidate_hits, ON_candidate_hits$NTgene), function(target){
+        # get maximum detected off-target effect per candidate sgRNA
+        maxOffreprAct <- unlist(lapply(target$name, function(candidate){
+          # get all binding sites
+          allhits_candidate <- candidate_hits[candidate_hits$name %in% candidate, ]
+          # get off-target row IDs
+          offID <- !allhits_candidate$NTgene %in% target$NTgene[1]
+          # if off-targets, give max reprAct, 0 otherwise (i.e. worst off-target effect)
+          ifelse(sum(offID) > 0, 
+                 max(allhits_candidate[offID, "reprAct"]), 
+                 0)
+        }))
+        # add max expected off-target effect to data frame
+        target$maxOffreprAct <- maxOffreprAct
+        # select sgRNA with smallest maxOffreprAct + errorRange_maxOffreprAct
+        opt_tmp <- target[target$maxOffreprAct <= (min(maxOffreprAct) + errorRange_maxOffreprAct), ]
+        # if multiple, select on smallest dist2SC
+        opt_tmp[which.min(opt_tmp$dist2SC), ]
+      }, mc.cores = n_cores)
+    }
   } else{
     # if single-core
     optimal_sgRNAs_ls <- lapply(split(ON_candidate_hits, ON_candidate_hits$NTgene), function(target){
@@ -241,11 +275,11 @@ if(output_optimized_list){
   # collect optimal sgRNAs
   optimal_sgRNAs_df <- do.call(rbind, optimal_sgRNAs_ls)
   # get forward and reverse spacer strands
-  optimal_sgRNAs_df$forward <- substr(optimal_sgRNAs_df$TargetSequence, 1, spacer_length)
-  optimal_sgRNAs_df$reverse <- (reverseComplement(DNAStringSet(optimal_sgRNAs_df$forward)))
+  optimal_sgRNAs_df$forward <- substr(optimal_sgRNAs_df$targetSequence, 1, spacer_length)
+  optimal_sgRNAs_df$reverse <- as.character(reverseComplement(DNAStringSet(optimal_sgRNAs_df$forward)))
   # get forward and reverse oligo's
   optimal_sgRNAs_df$oligoForward <- paste0(oligoForwardOverhang, optimal_sgRNAs_df$forward)
   optimal_sgRNAs_df$oligoReverse <- paste0(oligoReverseOverhang, optimal_sgRNAs_df$reverse)
   # write to file
-  write.csv(optimal_sgRNAs_df, file = paste0(outdir, "/", input_genome, "_maxmismatch", max_mismatch, "_sgRNAs_optimal.csv"))
+  write.csv(optimal_sgRNAs_df, file = paste0(outdir, "/", genomeID, "_maxmismatch", max_mismatch, "_sgRNAs_optimal.csv"))
 }
