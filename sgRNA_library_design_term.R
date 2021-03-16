@@ -31,14 +31,17 @@ output_optimized_list <- TRUE
 
 #### 2. Preliminaries ####
 # check inputs
-if(endsWith(input_genome, ".gb")){
+if(any(endsWith(input_genome, c(".gb", ".gbf", ".gbff")))){
   input_type <- "gbfile"
 } else{
   if(any(startsWith(input_genome, c("GCA", "GCF")))){
     input_type <- "accessionnr"
   } else{
-    stop("Input file should either be a .gb file or an NCBI genome assembly accession number (GCA_ or GCF_).")
+    stop("Input should either be one of .gb, .gbf or .gbff files or an NCBI genome assembly accession number (GCA_ or GCF_).")
   }
+}
+if(input_type == "accessionnr" & is.na(path_ncbi_downloads)){
+  stop("Please provide the path to the directory to save downloaded genomes and annotations.")
 }
 if(!file.exists(paste0(fundir, "/function_sgRNAefficiencyMC.R"))){
   stop("Please save the function file function_sgRNAefficiencyMC.R in the directory 'fundir'.")
@@ -51,6 +54,7 @@ if(input_type == "accessionnr"){
   db <- switch(substr(input_genome, 1, 3), 
                GCA = "genbank", 
                GCF = "refseq")
+  message(paste("Using", db, "data base. Please use GCA accession for genbank and GCF for refseq."))
 }
 # detect OS
 platform <- .Platform$OS.type
@@ -66,13 +70,16 @@ for(i in seq.int(required_packages_BioC)){
   if(!requireNamespace(required_packages_BioC[i], quietly = TRUE)){BiocManager::install(required_packages_BioC[i])}
 }
 # load packages
-lapply(required_packages_BioC, library, character.only = TRUE)
+invisible(suppressWarnings(suppressPackageStartupMessages(lapply(required_packages_BioC, 
+                                                                 library, character.only = TRUE)
+)))
 library(parallel)
 # load user-defined functions
 source(paste0(fundir, "/function_sgRNAefficiencyMC.R"))
 
 
 #### 3. Get genome, features and extract feature sequences ####
+message("Loading genome...")
 if(input_type == "accessionnr"){
   if(file.exists(paste0(path_ncbi_downloads, "/_ncbi_downloads/genomes/", input_genome,"_genomic_", db, ".fna.gz"))){
     genome_path <- paste0(path_ncbi_downloads, "/_ncbi_downloads/genomes/", input_genome,"_genomic_", db, ".fna.gz")
@@ -91,7 +98,7 @@ if(input_type == "accessionnr"){
                       reference = FALSE, 
                       path = paste0(path_ncbi_downloads, "/_ncbi_downloads/annotation/"))
   }
-  GFF <- read_gff(gffPath)
+  GFF <- suppressMessages(read_gff(gffPath))
   # extract all features of type feature_type
   genes <- GFF[unlist(lapply(GFF$attribute, grepl, pattern = feature_type)), ]
   # replace split features with same attributes by first with total range for start and end
@@ -117,19 +124,48 @@ if(input_type == "accessionnr"){
   # }))
   ## add ";" at end in case feature_type is last attribute (regular expression requires ending character)
   genes$locus_tag <- sub(paste0(".*?", feature_type, "=(.*?);.*"), "\\1", paste0(genes$attribute, ";"))
+  genes_tags <- genes$locus_tag
   # remove duplicates
   genes <- genes[!duplicated(genes_tags), ]
-  gene_tags <- genes$locus_tag
 } else{
-  genome_gb <- readGenBank(input_genome)
-  genome <- getSeq(genome_gb)
-  genes <- as.data.frame(genes(genome_gb))
-  genes$seqid <- genes$seqnames
+  # made generic for multi-chromosome cases (plasmids)
+  genome_txt <- readLines(input_genome)
+  # chromosomes are split in .gbff files by //
+  chromsep <- grep("//", genome_txt)
+  # read in genbank object for each chromosome separately
+  genome_gb_ls <- lapply(seq.int(length(chromsep)), function(chrom){
+    chrom_txt <- if(chrom == 1){
+      genome_txt[seq.int(chromsep[chrom])]
+    } else{
+      genome_txt[seq.int(chromsep[chrom - 1] + 1, 
+                         chromsep[chrom], 
+                         by = 1)]
+    }
+    chrom_gb <- suppressMessages(readGenBank(text = chrom_txt))
+    return(chrom_gb)
+  })
+  # merge all chromosome information
+  genome <- do.call(c, lapply(seq.int(length(genome_gb_ls)), function(chrom){
+    chrom_seq <- getSeq(genome_gb_ls[[chrom]])
+    names(chrom_seq) <- accession(genome_gb_ls[[chrom]])
+    return(chrom_seq)
+  }))
+  #genome <- do.call(c, lapply(genome_gb_ls, getSeq))
+  # make sure resulting gene tables can be merged
+  genes_cols <- c("seqnames", "start", "end", "strand", "gene", "locus_tag", "gene_id")
+  genes <- do.call(rbind, lapply(seq.int(length(genome_gb_ls)), function(chrom){
+    data.frame(as.data.frame(genes(genome_gb_ls[[chrom]]))[, genes_cols], 
+               "seqid" = names(genome)[chrom])
+  }))
+  # genome_gb <- readGenBank(input_genome)
+  # genome <- getSeq(genome_gb)
+  # genes <- as.data.frame(genes(genome_gb))
+  # genes$seqid <- genes$seqnames
   genes_tags <- genes$locus_tag
 }
 genomeID <- switch(input_type, 
                    accessionnr = input_genome, 
-                   gbfile = genome_gb@version["accession.version"])
+                   gbfile = accession(genome_gb_ls[[1]]))
 # chromID <- switch(input_type, 
 #                   accessionnr = "seqid", 
 #                   gbfile = "seqnames")
@@ -144,6 +180,7 @@ if(output_target_fasta){writeXStringSet(genes_seq, paste0(outdir, "/", genomeID,
 
 
 #### 4. Find candidate sgRNAs ####
+message("Detecting all candidate sgRNAs...")
 ## identify all possible sgRNAs within annotated genetic elements
 # multi-core socket in windows, forking otherwise
 if(platform == "windows"){
@@ -156,7 +193,7 @@ if(platform == "windows"){
                                 gRNA.size = spacer_length)
 } else{
   # looping through index instead of sequence retains feature names
-  candidate_sgRNAs <- do.call(c, mclapply(seq.int(genes_seq[1:10]), function(gene){
+  candidate_sgRNAs <- do.call(c, mclapply(seq.int(genes_seq), function(gene){
     findgRNAs(genes_seq[gene], 
               annotatePaired = FALSE, 
               n.cores.max = 1, 
@@ -203,6 +240,7 @@ if(output_full_list){write.csv(candidate_hits,
 
 #### 6. Pick optimal sgRNAs per feature ####
 if(output_optimized_list){
+  message("Choosing optimal sgRNA per gene...")
   # optimize only for features with >0 perfect on-target sgRNAs
   ON_candidate_hits <- candidate_hits[candidate_hits$n.mismatch == 0, ]
   # if multi core
@@ -289,3 +327,4 @@ if(output_optimized_list){
   # write to file
   write.csv(optimal_sgRNAs_df, file = paste0(outdir, "/", genomeID, "_maxmismatch", max_mismatch, "_sgRNAs_optimal.csv"))
 }
+message(paste("DONE, output saved in", outdir))
