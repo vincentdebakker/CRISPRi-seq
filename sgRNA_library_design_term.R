@@ -8,12 +8,12 @@ argsIN <- commandArgs(trailingOnly = TRUE)
 ####
 
 #### 1. Settings ####
-input_genome <- argsIN[1] # "C:/Users/vince/Documents/PhD/Data/Genomes/TIGR4/20210311_TIGR4_AE005672.3.gb" # "GCA_003003495.1" "C:/Users/vince/Documents/PhD/Data/Genomes/D39V/D39_JWV.gb"
-fundir <- argsIN[2] # "C:/Users/vince/Documents/PhD/Projects/CRISPRi-seq_sgRNA-library-design-eval/"
-outdir <- argsIN[3] #"C:/Users/vince/Documents/PhD/Projects/CRISPRi-seq_sgRNA-library-design-eval/testdir/"
-n_cores <- as.integer(argsIN[4]) # 1
+input_genome <- argsIN[1] # .gb[ff] file or NCBI assembly accession nr.
+fundir <- argsIN[2] # path to directory with file function_sgRNAefficiencyMC.R
+outdir <- argsIN[3] # path to output directory
+n_cores <- as.integer(argsIN[4]) # number of cores to be used
 #
-path_ncbi_downloads <- argsIN[5] # "C:/Users/vince/Documents/PhD/Data/Genomes/" # ~
+path_ncbi_downloads <- argsIN[5] # if input_genome is accession nr.: path to directory to save genome & annotation
 #
 feature_type <- "locus_tag"
 max_mismatch <- 6

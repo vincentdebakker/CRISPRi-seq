@@ -5,12 +5,12 @@
 ####
 
 #### 1. Settings ####
-input_genome <- "C:/Users/vince/Documents/PhD/Data/Genomes/TIGR4/20210311_TIGR4_AE005672.3.gb" # "GCA_003003495.1" "C:/Users/vince/Documents/PhD/Data/Genomes/D39V/D39_JWV.gb"
-fundir <- "C:/Users/vince/Documents/PhD/Projects/CRISPRi-seq_sgRNA-library-design-eval/"
-outdir <- "C:/Users/vince/Documents/PhD/Projects/CRISPRi-seq_sgRNA-library-design-eval/testdir/"
-n_cores <- 3
+input_genome <- # .gb[ff] file or NCBI assembly accession nr.
+fundir <- # path to directory with file function_sgRNAefficiencyMC.R
+outdir <- # path to output directory
+n_cores <- 3 # number of cores to be used
 #
-path_ncbi_downloads <- "C:/Users/vince/Documents/PhD/Data/Genomes/" # ~
+path_ncbi_downloads <- "~" # if input_genome is accession nr.: path to directory to save genome & annotation
 feature_type <- "locus_tag"
 max_mismatch <- 6
 reprAct_penalties <- "qi.mean.per.region"
