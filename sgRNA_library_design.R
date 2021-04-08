@@ -195,7 +195,7 @@ if(output_optimized_list){
   # collect optimal sgRNAs
   optimal_sgRNAs_df <- do.call(rbind, optimal_sgRNAs_ls)
   # get forward and reverse spacer strands
-  optimal_sgRNAs_df$forward <- substr(optimal_sgRNAs_df$TargetSequence, 1, spacer_length)
+  optimal_sgRNAs_df$forward <- substr(optimal_sgRNAs_df$targetSequence, 1, spacer_length)
   optimal_sgRNAs_df$reverse <- as.character(reverseComplement(DNAStringSet(optimal_sgRNAs_df$forward)))
   # get forward and reverse oligo's
   optimal_sgRNAs_df$oligoForward <- paste0(oligoForwardOverhang, optimal_sgRNAs_df$forward)
