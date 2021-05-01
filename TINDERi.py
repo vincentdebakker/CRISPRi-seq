@@ -10,8 +10,8 @@ import sys
 
 # Type-expressions are currently not supported inside jit functions. 
 # Leaving as global
-int_array = types.int32[:]
-inner_dict_type = types.DictType(types.unicode_type, types.int32[:])
+int_array_8 = types.int8[:]
+inner_dict_type = types.DictType(types.unicode_type, types.int8[:])
 
 @njit
 def numba_dict(tipo):
@@ -24,15 +24,15 @@ def numba_dict(tipo):
     return dictionary
 
 @njit
-def sgrna_all_vs_all_comparator_inner(guide,all_combos,parameters):
+def sgrna_all_vs_all_comparator_inner(guide,all_combos,parameters,l):
     
     """ Runs the inner loop of the all vs all sgRNA comparison.
     Compares one sgRNA to all the PAM sites. 
     Returns the mismatch matrix"""
     
-    result_dict = numba_dict(int_array)
+    result_dict = numba_dict(int_array_8)
     for b in all_combos: 
-        result = binary_subtract(guide,all_combos[b],parameters) 
+        result = binary_subtract(guide,all_combos[b],parameters,l) 
         if result is not None:
             result_dict[b]=result
 
@@ -47,34 +47,31 @@ def sgrna_all_vs_all_comparator_outer(chunk,all_combos,parameters,i):
     
     compiled = numba_dict(inner_dict_type)
     for a in chunk:
-        compiled[a] = sgrna_all_vs_all_comparator_inner(chunk[a],all_combos,parameters)
+        l = len(chunk[a])
+        compiled[a] = sgrna_all_vs_all_comparator_inner(chunk[a],all_combos,parameters,l)
     return compiled
 
 @njit
-def binary_subtract(array1,array2,parameters):
-    
-    """ subtracts the binary matrix corresponding to one sgRNA, 
-    to the comparing one. All the user inputed parameters are run, one by one,
-    in an additive manner. if more mismatches than the allowed are detected,
-    the function returns None, and the iteration for this combination is stopped"""
-
+def binary_subtract(array1,array2,parameters,l):
+    sub = np.ones((l), dtype=np.int8)
+    start_place=0
+    miss=0
     for length, mismatch in parameters:
-        sub = np.ones((len(array1[:length])), dtype=np.int32)
-        miss=0
-        for i,(arr1,arr2) in enumerate(zip(array1[:length],array2[:length])):
+        for i,(arr1,arr2) in enumerate(zip(array1[start_place:length],array2[start_place:length])):
             if arr1-arr2 == 0:
-                sub[i] = 0
+                sub[i+start_place] = 0
             else:
-                miss += 1           
+                miss += 1
             if miss>mismatch:
                 return #if any of the rules are broken, ignore the entire thing
-
+        start_place=length
     return(sub)
 
 def file_parser(file,nb_dict):
     
     """ Parses the input .csv files into dictionaries. Converts all DNA
-    sequences to their respective binary array forms """
+    sequences to their respective binary array forms. This gives some computing
+    speed advantages."""
     
     def str_to_binary(text):
         text = list(map(bin,bytearray(text,'utf8')))
@@ -83,7 +80,7 @@ def file_parser(file,nb_dict):
         return text
     
     if nb_dict:
-        container = numba_dict(int_array)
+        container = numba_dict(int_array_8)
     else:
         container = {}
     
@@ -95,7 +92,7 @@ def file_parser(file,nb_dict):
             sequence = sequence.replace(" ", "")
             byte_list = str_to_binary(sequence)
             if name not in container:
-                container[name] = np.array((byte_list))
+                container[name] = np.array((byte_list), dtype=np.int8)
                 
     return container
 
@@ -124,6 +121,7 @@ def processing_decision(sgrna,parameters,directory,names):
     
     #single processed
     if len(sgrna) <= cpu:
+        sgrna = file_parser(directory+names[1],True)
         result=sgrna_all_vs_all_comparator_outer(sgrna,all_combos,parameters,1)
         write(result,directory+names[2].format(1))
     
@@ -140,7 +138,7 @@ def time_estimate(sgrna,all_combos,parameters,cpu):
     small subset (30) of sgRNAs """
     
     #create estimate dictionary
-    estimate = numba_dict(int_array)
+    estimate = numba_dict(int_array_8)
     
     for key in sgrna:
         if len(estimate) < 30:
@@ -164,7 +162,7 @@ def multi_numba_compiler(chunk,parameters,i,directory,names):
     all numba processing needs to be done after child process is created"""
     
     all_combos = file_parser(directory+names[1],True)
-    chunk_numba = numba_dict(int_array)
+    chunk_numba = numba_dict(int_array_8)
     
     for chunky in chunk:
         chunk_numba[chunky] = chunk[chunky]
@@ -176,7 +174,8 @@ def multi_numba_compiler(chunk,parameters,i,directory,names):
     
 def multi(chunked,parameters,pool,directory,names):
     
-     """Handles the multiprocessing, returning the writing paths of each individual process"""
+    """Handles the multiprocessing, 
+     returning the writing paths of each individual process """
     
     result_objs = []
     for i,chunk in enumerate(chunked):
@@ -196,7 +195,7 @@ def multi(chunked,parameters,pool,directory,names):
 #split dictionary to allocate for multiprocessing:
 def dict_split(input_dict, chunks):
     
-     """Divides the sgRNA dictionary into equally divided chunks corresponding
+    """Divides the sgRNA dictionary into equally divided chunks corresponding
      to the total number of processes. This way each process runs a similar 
      ammount of work, only needing to be initialized once"""
     
@@ -219,7 +218,7 @@ def dict_split(input_dict, chunks):
 
 def write(result,directory):
     
-     """writes the output of each process in the appropriate format"""
+    """writes the output of each process in the appropriate format"""
     
     with open(directory, 'w') as f:
         for guide in result:
@@ -233,7 +232,7 @@ def write(result,directory):
                 
 def write_compiled(paths,out):
     
-     """Compiles all the created outputd files from the individual processes
+    """Compiles all the created outputd files from the individual processes
      into one final one"""
     
     master = []
