@@ -1,5 +1,6 @@
 # Genome-wide sgRNA library design and evaluation for CRISPRi-seq
 Author: Vincent de Bakker  
+Python code by Afonso Bravo    
 See also: <https://www.veeninglab.com/crispri-seq>  
 Published as a part of: 
 * Liu, X., Kimmey, J.M., Matarazzo, L., de Bakker, V., Van Maele, L., Sirard, J.-C., Nizet, V., Veening, J.-W. (2020) Exploration of bacterial bottlenecks and _Streptococcus pneumoniae_ pathogenesis by CRISPRi-seq. _Cell Host & Microbe_. https://doi.org/10.1016/j.chom.2020.10.001
@@ -56,7 +57,7 @@ The pipeline in the file **sgRNA_library_design.R** can be run to design an sgRN
 Candidate sgRNAs for every feature are found using `CRISPRseek::findgRNAs()` and genomes and annotations (GFF files) are imported from NCBI using the [biomartr package](https://cran.r-project.org/package=biomartr). The pipeline supports multicore processing.
 
 ## Usage
-Open the script (we recommend in the RStudio integrated development environment), adjust the input parameters in the first code section `#### 1. Settings ####` and then run the whole script with those input parameters. Depending on the genome size, number of annotated features, number of allowed mismatches in binding site identification, number of cores used for parallel processing and computer specifications, computation times may be in the order of one to a few hours. 
+Open the script (we recommend in the RStudio integrated development environment), adjust the input parameters in the first code section `#### 1. Settings ####` and then run the whole script with those input parameters. Depending on the genome size, number of annotated features, number of allowed mismatches in binding site identification, number of cores used for parallel processing and computer specifications, computation times may be in the order of one to a few hours. Regarding the Python3 script TINDERi.py, as it is initialized from the command window, its highly advisable to download and install anaconda. This should ensure a proper working Python environment. All required dependencies can be seen at the top of the Python script as `import`. 
 
 ## Input
 Parameter | Description
