@@ -6,40 +6,31 @@
 
 #### 1. Settings ####
 ## REQUIRED ##
-input_genome <- "C:/Users/vince/Documents/PhD/Data/Genomes/D39V/D39_JWV.gbf" # GCA_003003495.1 # .gb[ff] file or NCBI assembly accession nr.
-sgRNA_file <- "C:/Users/vince/Documents/PhD/Projects/CRISPRi-seq_sgRNA-library-design-eval/testdir/D39V/eval/D39V/jelle/D39_JWV_sgRNAs_eval.csv"
-outdir <- "C:/Users/vince/Documents/PhD/Projects/CRISPRi-seq_sgRNA-library-design-eval/testdir/D39V/eval/D39V/invertTINDRi/" # ~
-TINDRidir <- "C:/Users/vince/Documents/PhD/Projects/CRISPRi-seq_sgRNA-library-design-eval/" # outdir
+input_genome <- "INPUT GENOME HERE"
+sgRNA_file <- "INPUT sgRNA LIBRARY HERE"
+outdir <- "OUTPUT DIRECTORY HERE"
+TINDRidir <- "TINDRi.py DIRECTORY HERE"
 
 ## OPTIONAL ##
-#n_sgRNA <- 1
-path_ncbi_downloads <- NA #"C:/Users/vince/Documents/PhD/Data/Genomes/" # outdir # if input genome is NCBI accession assembly
-regions <- c(7, 2, 11) # c(9, 5, 6) # cui: c(9, 11)
-max_mismatch_cum <- c(1, 2, 11)     # cui: c(1, 11) [more in line with hawkins] or c(0, 11) [faster] or c(1, 12) [everything after seed]
-reprAct_penalties <- "HawkinsBsuMedian" # if custom input given: from PAM-proximal to -distal
+path_ncbi_downloads <- NA
+regions <- c(7, 2, 11)
+max_mismatch_cum <- c(1, 2, 11)
+reprAct_penalties <- "HawkinsBsuMedian"
 pen_func <- prod
-#errorRange_maxOffreprAct <- 0.2
 bad_seeds <- c("ACCCA", "TGGAA")
-#bad_seed_rule <- "ignore" #c("ignore", "avoid", "exclude")
-cut_sites <- c(BsmBI = "CGTCTC", tandemT = "TTTTT") # auto-use rev-compl too # CGTCTC=BsaI # order of importance!
-#cut_site_rule <- "avoid"
-oligoForwardOverhang <- "TATA" # if nothing wanted, use "", not NULL!
+cut_sites <- c(BsmBI = "CGTCTC", tandemT = "TTTTT")
+oligoForwardOverhang <- "TATA"
 oligoReverseOverhang <- "AAAC"
 PAM <- "NGG"
-#filter_out_duplicates <- TRUE
 output_exact <- TRUE
-output_full <- FALSE # for large libraries, will be large and take long
-# output_optimized_list <- TRUE
-# output_all_candidates <- FALSE
-# output_target_fasta <- FALSE
+output_full <- FALSE
 output_sgRNAs_fasta <- FALSE
 output_sites_fasta <- FALSE
-# output_full_list <- FALSE # very large file
-detect_offtarget_genes_full <- FALSE # can increase comp time considerably if many sgRNAs
-keep_TINDRi_input_sgRNAs <- FALSE # > FALSE
-keep_TINDRi_input_sites <- FALSE # > FALSE
-keep_TINDRi_matches <- FALSE #large! > FALSE
-path_python <- "C:/Users/vince/anaconda3/python.exe" # default: NULL, should be in $PATH
+detect_offtarget_genes_full <- FALSE
+keep_TINDRi_input_sgRNAs <- FALSE
+keep_TINDRi_input_sites <- FALSE
+keep_TINDRi_matches <- FALSE
+path_python <- NULL
 feature_type <- "locus_tag"
 
 

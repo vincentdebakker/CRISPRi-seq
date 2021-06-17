@@ -88,7 +88,7 @@ Variable | Description
 ## Within-R version
 
 ### Usage
-Open the script **sgRNA_library_design.R** (we recommend in the RStudio integrated development environment), adjust the input parameters in the first code section `#### 1. Settings ####` and then run the whole script with those input parameters. In its simplest form, only `input_genome`, `outdir` and `TINDRidir` need to be specified. Depending on the genome size, number of annotated features, number of allowed mismatches in binding site identification and computer specifications (such as number of available logical processors), computation times will likely be in the order of 10-60 minutes. 
+Open the script **sgRNA_library_design.R** (we recommend in the RStudio integrated development environment), adjust the input parameters in the first code section `#### 1. Settings ####` and then run the whole script with those input parameters. In its simplest form, only `input_genome`, `outdir` and `TINDRidir` need to be specified (under `## REQUIRED ##`). Depending on the genome size, number of annotated features, number of allowed mismatches in binding site identification and computer specifications (such as number of available logical processors), computation times will likely be in the order of 10-60 minutes. 
 
 ### Input
 Parameter | Description
@@ -199,7 +199,7 @@ Variable | Description
 ## Within-R version
 
 ### Usage
-Open the script **sgRNA_library_evaluation.R** (we recommend in the RStudio integrated development environment), adjust the input parameters in the first code section `#### 1. Settings ####` and then run the whole script with those input parameters. In its simplest form, only `input_genome`, `sgRNA_file`, `outdir` and `TINDRidir` need to be specified. Depending on the genome size, number of annotated features, number of allowed mismatches in binding site identification, and computer specifications (such as the number of available logical processors for multi-core processing), computation times may be in the order of 10-60 minutes. 
+Open the script **sgRNA_library_evaluation.R** (we recommend in the RStudio integrated development environment), adjust the input parameters in the first code section `#### 1. Settings ####` and then run the whole script with those input parameters. In its simplest form, only `input_genome`, `sgRNA_file`, `outdir` and `TINDRidir` need to be specified (under `## REQUIRED ##`). Depending on the genome size, number of annotated features, number of allowed mismatches in binding site identification, and computer specifications (such as the number of available logical processors for multi-core processing), computation times may be in the order of 10-60 minutes. 
 
 ### Input
 Parameter | Description

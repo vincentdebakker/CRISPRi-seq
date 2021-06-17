@@ -4,45 +4,27 @@
 # vincent.debakker@unil.ch
 ####
 
-#### TO DO ####
-# NOT NOW if input_genome is .fasta file, gff file should also be supplied
-# NOT NOW allow for on_target mismatches. Now optimal design only allows for perfect on_target sgRNA binding site matches. Could be done building on the full table output, though, if desired by users.
-# NOT NOW add code to read over gap of circular, but linearalized chromosomes when finding sgRNAs and binding sites
-####
-# OPTIONAL: rm and read in fasta of all sgRNA candidates and all_sites only where needed. In case run out of RAM?
-# OPTIONAL: add option to output all zero-mismatch sgRNAs per feature (basically the candidate fasta file w/ more info)
-####
-# check if definition(genome_gb_ls[[chrom]]) gives unique chrom names (accession doesn't work for d39v.gbf)
-# test mclapply for finding all binding sites
-# test with different genome_inputs
-# test with different OS (linux: path_python = NULL should work! also test modules etc)
-# test automatic python detection / module installation
-# test with multiple chromosomes: both NCBI & .gbff!
-# test with larger genomes (E. coli) >> try badseedrule = exclude; errorRange_maxOffreprAct = 0; reprAct_penalties = eco
-# test with subset/small genome: output_full_list & detect_offtarget_genes_full TRUE
-###############
-
 
 #### 1. Settings ####
 ## REQUIRED ##
-input_genome <- "C:/Users/vince/Documents/PhD/Data/Genomes/D39V/D39_JWV.gbf" #"GCA_003003495.1" # .gb[ff] file or NCBI assembly accession nr.
-outdir <- "C:/Users/vince/Documents/PhD/Projects/CRISPRi-seq_sgRNA-library-design-eval/testdir/D39V/040/" # ~
-TINDRidir <- "C:/Users/vince/Documents/PhD/Projects/CRISPRi-seq_sgRNA-library-design-eval/" # outdir
+input_genome <- "INPUT GENOME HERE"
+outdir <- "OUTPUT DIRECTORY HERE"
+TINDRidir <- "TINDRi.py DIRECTORY HERE"
 
 ## OPTIONAL ##
 n_sgRNA <- 1
-path_ncbi_downloads <- NA # "C:/Users/vince/Documents/PhD/Data/Genomes/" # outdir # if input genome is NCBI accession assembly
-regions <- c(7, 2, 11) # c(9, 5, 6) # cui: c(9, 11)
-max_mismatch_cum <- c(1, 2, 11)     # cui: c(1, 11) [more in line with hawkins] or c(0, 11) [faster] or c(1, 12) [everything after seed]
-reprAct_penalties <- "HawkinsBsuMedian" # if custom input given: from PAM-proximal to -distal
+path_ncbi_downloads <- NA
+regions <- c(7, 2, 11) 
+max_mismatch_cum <- c(1, 2, 11)
+reprAct_penalties <- "HawkinsBsuMedian"
 pen_func <- prod
 errorRange_maxOffreprAct <- 0.4
 avoidNonBaseNT <- TRUE
 bad_seeds <- c("ACCCA", "TGGAA")
-bad_seed_rule <- "ignore" #c("ignore", "avoid", "exclude")
-cut_sites <- c(BsmBI = "CGTCTC", tandemT = "TTTTT") # auto-use rev-compl too # CGTCTC=BsaI # order of importance!
+bad_seed_rule <- "ignore"
+cut_sites <- c(BsmBI = "CGTCTC", tandemT = "TTTTT")
 cut_site_rule <- "avoid"
-oligoForwardOverhang <- "TATA" # if nothing wanted, use "", not NULL!
+oligoForwardOverhang <- "TATA"
 oligoReverseOverhang <- "AAAC"
 PAM <- "NGG"
 filter_out_duplicates <- TRUE
@@ -51,12 +33,12 @@ output_all_candidates <- FALSE
 output_target_fasta <- FALSE
 output_sgRNAs_fasta <- FALSE
 output_sites_fasta <- FALSE
-output_full_list <- FALSE # very large file
-detect_offtarget_genes_full <- FALSE # will increase comp time considerably if TRUE!
-keep_TINDRi_input_sgRNAs <- FALSE # > FALSE
-keep_TINDRi_input_sites <- FALSE # > FALSE
-keep_TINDRi_matches <- TRUE #large! > FALSE
-path_python <- "C:/Users/vince/anaconda3/python.exe" # default: NULL, should be in $PATH
+output_full_list <- FALSE 
+detect_offtarget_genes_full <- FALSE
+keep_TINDRi_input_sgRNAs <- FALSE
+keep_TINDRi_input_sites <- FALSE
+keep_TINDRi_matches <- TRUE
+path_python <- NULL
 feature_type <- "locus_tag"
 
 
