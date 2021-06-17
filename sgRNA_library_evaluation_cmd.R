@@ -1,50 +1,130 @@
-#### Target-site detection and reporting for given sgRNAs ####
+#!/usr/bin/Rscript
+
+#### Target site detection and reporting for given sgRNAs ####
 # Author: Vincent de Bakker
 # Veening Lab, DMF, FBM, University of Lausanne, Switzerland
 # vincent.debakker@unil.ch
 ####
 
 #### 1. Settings ####
+if(!requireNamespace("optparse", quietly = TRUE)){install.packages("optparse")}
+suppressPackageStartupMessages(library(optparse))
+option_list <- list(make_option(c("-g", "--input_genome"),
+                                type = "character", 
+                                help = "Input genome either as GenBank file or NCBI assembly accession number"), 
+                    make_option(c("-s", "--sgRNA_file"), 
+                                type = "character", 
+                                help = "Input .csv file listing sgRNA names and spacer sequences (without PAM)"), 
+                    make_option(c("-o", "--outdir"), 
+                                type = "character", default = "~/", 
+                                help = "Output directory [default %default]"), 
+                    make_option(c("-t", "--TINDRidir"), 
+                                type = "character", default = "~/", 
+                                help = "Directory in which python script TINDRi.py can be found [default %default]"), 
+                    make_option(c("-d", "--path_ncbi_downloads"), 
+                                type = "character", default = NA, 
+                                help = "Directory in which to store files downloaded from NCBI, if --input_genome is an accession number [default %default]"), 
+                    make_option(c("-r", "--regions"),
+                                type = "character", default = "7,2,11", 
+                                help = "Character string of comma-separated integers indicating sub-spacer region sizes (PAM-proximal to PAM-distal) for which to set --max_mismatch_cum [default %default]"), 
+                    make_option(c("-m", "--max_mismatch_cum"),
+                                type = "character", default = "1,2,11",
+                                help = "Character string of comma-separated integers indicating maximum cumulutive (PAM-proximal to PAM-distal) 
+                                number of mismatches allowed with potential target sites over sub-spacer regions as defined by --regions [default %default]"), 
+                    make_option(c("-p", "--reprAct_penalties"), 
+                                default = "HawkinsBsuMedian", 
+                                help = "Nucleotide-wise (PAM-proximal to PAM-distal) penalty scores to compute estimated repression activity of sgRNAs on each site. 
+                                One of characters HawkinsEcoMean, HawkinsBsuMean, HawkinsEcoMedian, HawkinsBsuMedian, Qi, QiMean, QiMedian, 
+                                or a string of integers separated by comma's of length sum(--regions) with custom penalties [default %default]"), 
+                    make_option(c("-f", "--pen_func"), 
+                                type = "character", default = "prod", 
+                                help = "Penalty function to apply to --reprAct_penalties to compute sgRNA repression activity estimate for given binding site [default %default]"), 
+                    make_option(c("-b", "--bad_seeds"), 
+                                type = "character", default = "ACCCA,TGGAA", 
+                                help = "Bad seeds (can be of varying lengths) to detect, input as comma-separated string [default %default]"), 
+                    make_option(c("-c", "--cut_sites"), 
+                                type = "character", default = "CGTCTC,TTTTT", 
+                                help = "Comma-separated string indicating motifs to detect (e.g. restriction enzyme cut sites or tandem base pairs); 
+                                reverse-complements are also automatically detected [default %default]"), 
+                    make_option(c("-n", "--cut_sites_names"), 
+                                type = "character", default = "BsmBI,tandemT", 
+                                help = "String with names of --cut_sites, input in same order and separated by comma's [default %default]"), 
+                    make_option(c("-F", "--oligoForwardOverhang"), 
+                                type = "character", default = "TATA", 
+                                help = "Forward overhang for oligonucleotide primer design (important for --cut_sites detection) [default %default]"), 
+                    make_option(c("-R", "--oligoReverseOverhang"), 
+                                type = "character", default = "AAAC", 
+                                help = "Reverse overhang for oligonucleotide primer design (important for --cut_sites detection) [default %default]"), 
+                    make_option(c("-P", "--PAM"), 
+                                type = "character", default = "NGG", 
+                                help = "Protospacer Adjacent Motif (PAM) sequence [default %default]"), 
+                    make_option(c("-N", "--no_output_summary"), 
+                                action = "store_true", default = FALSE, 
+                                help = "Specifiy flag to turn OFF summary output .csv file with first- and second-highest repression activity hits per sgRNA"), 
+                    make_option(c("-A", "--output_full"), 
+                                action = "store_true", default = FALSE, 
+                                help = "Specify flag to turn ON full output .csv file with all found sgRNA - binding sites and scores"), 
+                    make_option("--output_sgRNAs_fasta", 
+                                action = "store_true", default = FALSE, 
+                                help = "Specify flag to turn ON output .fasta file with all sgRNA spacer sequences"), 
+                    make_option("--output_sites_fasta", 
+                                action = "store_true", default = FALSE, 
+                                help = "Specify flag to turn ON output .fasta file with all binding site sequences"), 
+                    make_option("--detect_offtarget_genes_full", 
+                                action = "store_true", default = FALSE, 
+                                help = "Specify flag to turn ON detection of and adding information on genes annotated on each binding site, if --output_full is turned on"), 
+                    make_option("--keep_TINDRi_input_sgRNAs", 
+                                action = "store_true", default = FALSE, 
+                                help = "Specify flag to keep intermittently produced .csv TINDRi.py input file with all sgRNA indexes and spacer sequences"), 
+                    make_option("--keep_TINDRi_input_sites", 
+                                action = "store_true", default = FALSE, 
+                                help = "Specify flag to keep intermittently produced .csv TINDRi.py input file with all binding site indexes and sequences"), 
+                    make_option(c("-K", "--keep_TINDRi_matches"), 
+                                action = "store_true", default = FALSE, 
+                                help = "Specify flag to keep intermittently produced .csv TINDRi.py output file with full sgRNA-site mismatch matrix"), 
+                    make_option("--path_python", 
+                                type = "character", default = NULL, 
+                                help = "If python 3 is installed but not in the PATH variable, specify the full path to the program here"), 
+                    make_option("--feature_type", 
+                                type = "character", default = "locus_tag", 
+                                help = "Name of feature flag to use for feature detection. Experimental feature, in principle do not change [default %default]"))
+opt <- parse_args(OptionParser(option_list = option_list))
+
 ## REQUIRED ##
-input_genome <- "C:/Users/vince/Documents/PhD/Data/Genomes/D39V/D39_JWV.gbf" # GCA_003003495.1 # .gb[ff] file or NCBI assembly accession nr.
-sgRNA_file <- "C:/Users/vince/Documents/PhD/Projects/CRISPRi-seq_sgRNA-library-design-eval/testdir/D39V/eval/D39V/jelle/D39_JWV_sgRNAs_eval.csv"
-outdir <- "C:/Users/vince/Documents/PhD/Projects/CRISPRi-seq_sgRNA-library-design-eval/testdir/D39V/eval/D39V/invertTINDRi/" # ~
-TINDRidir <- "C:/Users/vince/Documents/PhD/Projects/CRISPRi-seq_sgRNA-library-design-eval/" # outdir
+input_genome <- opt$input_genome
+sgRNA_file <- opt$sgRNA_file
+outdir <- opt$outdir
+TINDRidir <- opt$TINDRidir
 
 ## OPTIONAL ##
-#n_sgRNA <- 1
-path_ncbi_downloads <- NA #"C:/Users/vince/Documents/PhD/Data/Genomes/" # outdir # if input genome is NCBI accession assembly
-regions <- c(7, 2, 11) # c(9, 5, 6) # cui: c(9, 11)
-max_mismatch_cum <- c(1, 2, 11)     # cui: c(1, 11) [more in line with hawkins] or c(0, 11) [faster] or c(1, 12) [everything after seed]
-reprAct_penalties <- "HawkinsBsuMedian" # if custom input given: from PAM-proximal to -distal
-pen_func <- prod
-#errorRange_maxOffreprAct <- 0.2
-bad_seeds <- c("ACCCA", "TGGAA")
-#bad_seed_rule <- "ignore" #c("ignore", "avoid", "exclude")
-cut_sites <- c(BsmBI = "CGTCTC", tandemT = "TTTTT") # auto-use rev-compl too # CGTCTC=BsaI # order of importance!
-#cut_site_rule <- "avoid"
-oligoForwardOverhang <- "TATA" # if nothing wanted, use "", not NULL!
-oligoReverseOverhang <- "AAAC"
-PAM <- "NGG"
-#filter_out_duplicates <- TRUE
-output_exact <- TRUE
-output_full <- FALSE # for large libraries, will be large and take long
-# output_optimized_list <- TRUE
-# output_all_candidates <- FALSE
-# output_target_fasta <- FALSE
-output_sgRNAs_fasta <- FALSE
-output_sites_fasta <- FALSE
-# output_full_list <- FALSE # very large file
-detect_offtarget_genes_full <- FALSE # can increase comp time considerably if many sgRNAs
-keep_TINDRi_input_sgRNAs <- FALSE # > FALSE
-keep_TINDRi_input_sites <- FALSE # > FALSE
-keep_TINDRi_matches <- FALSE #large! > FALSE
-path_python <- "C:/Users/vince/anaconda3/python.exe" # default: NULL, should be in $PATH
-feature_type <- "locus_tag"
+path_ncbi_downloads <- opt$path_ncbi_downloads
+regions <- as.numeric(strsplit(opt$regions, ",")[[1]])
+max_mismatch_cum <- as.numeric(strsplit(opt$max_mismatch_cum, ",")[[1]])
+reprAct_penalties <- opt$reprAct_penalties
+pen_func <- opt$pen_func
+bad_seeds <- strsplit(opt$bad_seeds, ",")[[1]]
+cut_sites <- strsplit(opt$cut_sites, ",")[[1]]
+names(cut_sites) <- strsplit(opt$cut_sites_names, ",")[[1]]
+oligoForwardOverhang <- opt$oligoForwardOverhang
+oligoReverseOverhang <- opt$oligoReverseOverhang
+PAM <- opt$PAM
+output_exact <- !opt$no_output_summary
+output_full <- opt$output_full
+output_sgRNAs_fasta <- opt$output_sgRNAs_fasta
+output_sites_fasta <- opt$output_sites_fasta
+detect_offtarget_genes_full <- opt$detect_offtarget_genes_full
+keep_TINDRi_input_sgRNAs <- opt$keep_TINDRi_input_sgRNAs
+keep_TINDRi_input_sites <- opt$keep_TINDRi_input_sites
+keep_TINDRi_matches <- opt$keep_TINDRi_matches
+path_python <- opt$path_python
+feature_type <- opt$feature_type
 
 
 #### 2. Preliminaries ####
 # check inputs
+if(is.null(input_genome) | is.null(sgRNA_file)){
+  stop("Please specify both input_genome and sgRNA_file")
+}
 if(any(endsWith(input_genome, c(".gb", ".gbf", ".gbff", ".gbk")))){
   input_type <- "gbfile"
 } else{
