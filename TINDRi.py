@@ -1,6 +1,5 @@
 import numpy as np
 from numba import njit
-import time
 import multiprocessing
 import datetime
 from numba import types
@@ -24,34 +23,6 @@ def numba_dict(tipo):
     return dictionary
 
 @njit
-def sgrna_all_vs_all_comparator_inner(guide,all_combos,parameters,l):
-    
-    """ Runs the inner loop of the all vs all sgRNA comparison.
-    Compares one sgRNA to all the PAM sites. 
-    Returns the mismatch matrix"""
-    
-    result_dict = numba_dict(int_array_8)
-    for b in all_combos: 
-        result = binary_subtract(guide,all_combos[b],parameters,l) 
-        if result is not None:
-            result_dict[b]=result
-
-    return result_dict
-
-@njit
-def sgrna_all_vs_all_comparator_outer(chunk,all_combos,parameters,i):
-    
-    """ Runs the outer loop of the all vs all sgRNA comparison.
-    Sends individually the sgRNAs for the inner loop.
-    Returns the final mismatch matrix"""
-    
-    compiled = numba_dict(inner_dict_type)
-    for a in chunk:
-        l = len(chunk[a])
-        compiled[a] = sgrna_all_vs_all_comparator_inner(chunk[a],all_combos,parameters,l)
-    return compiled
-
-@njit
 def binary_subtract(array1,array2,parameters,l):
     sub = np.ones((l), dtype=np.int8)
     start_place=0
@@ -67,17 +38,39 @@ def binary_subtract(array1,array2,parameters,l):
         start_place=length
     return(sub)
 
+@njit
+def sgrna_all_vs_all_comparator_inner(guide,all_combos,parameters,l):
+    
+    """ Runs the inner loop of the all vs all sgRNA comparison.
+    Compares one sgRNA to all the PAM sites. 
+    Returns the mismatch matrix"""
+    
+    result_dict = numba_dict(int_array_8)
+    for b in all_combos: 
+        result = binary_subtract(guide,all_combos[b],parameters,l) 
+        if result is not None:
+            result_dict[b]=result
+
+    return result_dict
+
+
+def sgrna_all_vs_all_comparator_outer(chunk,all_combos,parameters,i,out_path):
+
+    """ Runs the outer loop of the all vs all sgRNA comparison.
+    Sends individually the sgRNAs for the inner loop.
+    Returns the final mismatch matrix"""
+    
+    write_file_creator(out_path)
+    for a in chunk:
+        l = len(chunk[a])
+        compiled = sgrna_all_vs_all_comparator_inner(chunk[a],all_combos,parameters,l)
+        write(a,compiled,out_path)
+
 def file_parser(file,nb_dict):
     
     """ Parses the input .csv files into dictionaries. Converts all DNA
     sequences to their respective binary array forms. This gives some computing
     speed advantages."""
-    
-    def str_to_binary(text):
-        text = list(map(bin,bytearray(text,'utf8')))
-        for i, letter in enumerate(text):
-            text[i] = int(letter[2:])
-        return text
     
     if nb_dict:
         container = numba_dict(int_array_8)
@@ -90,7 +83,7 @@ def file_parser(file,nb_dict):
             name = line[0]
             sequence = line[1].upper()
             sequence = sequence.replace(" ", "")
-            byte_list = str_to_binary(sequence)
+            byte_list = bytearray(sequence,'utf8')
             if name not in container:
                 container[name] = np.array((byte_list), dtype=np.int8)
                 
@@ -113,47 +106,10 @@ def processing_decision(sgrna,parameters,directory,names):
     Prepares the files for either multiprocessing or single processing"""
     
     pool,cpu = cpu_count()
-    all_combos = file_parser(directory+names[1],True)
-     
-    #extrapolate total tunning time from the first 30 entries
-    if len(sgrna)>=30:
-        time_estimate(sgrna,all_combos,parameters,cpu)
-    
-    #single processed
-    if len(sgrna) <= cpu:
-        sgrna = file_parser(directory+names[1],True)
-        result=sgrna_all_vs_all_comparator_outer(sgrna,all_combos,parameters,1)
-        write(result,directory+names[2].format(1))
-    
-    #multi processed
-    else:
-        chunked = dict_split(sgrna, cpu)
-        out_paths=multi(chunked,parameters,pool,directory,names)
-        out = directory+names[2].format("end")
-        write_compiled(out_paths,out)
-
-def time_estimate(sgrna,all_combos,parameters,cpu):
-    
-    """estimates the minimal total running time from the running time of a 
-    small subset (30) of sgRNAs """
-    
-    #create estimate dictionary
-    estimate = numba_dict(int_array_8)
-    
-    for key in sgrna:
-        if len(estimate) < 30:
-            estimate[key] = sgrna[key]
-        else:
-            break
-        
-    start = time.time()
-    sgrna_all_vs_all_comparator_outer(estimate,all_combos,parameters,"test")
-    end = time.time()-start
-    
-    estimate = end * (len(sgrna))/30/cpu
-    end_date = datetime.datetime.now()+datetime.timedelta(seconds=estimate)
-    
-    print(f"\nThe estimated end time should be no sooner than {end_date.strftime('%c')}")
+    chunked = dict_split(sgrna, cpu)
+    out_paths=multi(chunked,parameters,pool,directory,names)
+    out = directory+names[2].format("end")
+    write_compiled(out_paths,out)
 
 def multi_numba_compiler(chunk,parameters,i,directory,names):
     
@@ -163,13 +119,12 @@ def multi_numba_compiler(chunk,parameters,i,directory,names):
     
     all_combos = file_parser(directory+names[1],True)
     chunk_numba = numba_dict(int_array_8)
-    
+    out_path = directory+names[2].format(i)
+
     for chunky in chunk:
         chunk_numba[chunky] = chunk[chunky]
     
-    result = sgrna_all_vs_all_comparator_outer(chunk_numba,all_combos,parameters,i)
-    out_path = directory+names[2].format(i)
-    write(result,out_path)
+    sgrna_all_vs_all_comparator_outer(chunk_numba,all_combos,parameters,i,out_path)
     return out_path
     
 def multi(chunked,parameters,pool,directory,names):
@@ -185,12 +140,10 @@ def multi(chunked,parameters,pool,directory,names):
     pool.close()
     pool.join()
     
-    print(f"\nAlignement matrix generation ended on: {datetime.datetime.now().strftime('%c')}")
-    print("\nCompiling and writing to file\n")
-    
+    print(f"\nAlignment matrix generation ended on: {datetime.datetime.now().strftime('%c')}")
+
     out_paths = [result.get() for result in result_objs]
     return out_paths
-
 
 #split dictionary to allocate for multiprocessing:
 def dict_split(input_dict, chunks):
@@ -216,35 +169,41 @@ def dict_split(input_dict, chunks):
 
     return return_list
 
-def write(result,directory):
+def write_file_creator(out_path):
+    if not os.path.isfile(out_path):
+        with open(out_path, "w") as text_file:
+            text_file.close()
+
+def write(guide,result,out_path):
     
     """writes the output of each process in the appropriate format"""
-    
-    with open(directory, 'w') as f:
-        for guide in result:
-            for matched, matrix in result[guide].items():
-                f.write(guide + "\t")
-                f.write(str(matrix[0]))
-                for bp in matrix[1:]:
-                    f.write("," + str(bp))
-                f.write("\t" + matched)
-                f.write("\n")
-                
+
+    with open(out_path, "a+") as f:
+        for matched in result:
+            matrix = result[matched]
+            f.write(guide + "\t")
+            f.write(str(matrix[0]))
+            for bp in matrix[1:]:
+                f.write("," + str(bp))
+            f.write("\t" + matched)
+            f.write("\n")
+
 def write_compiled(paths,out):
     
     """Compiles all the created outputd files from the individual processes
      into one final one"""
-    
+    write_file_creator(out)
+
     master = []
     for path in paths:
         with open(path, 'r') as f:
             for entry in f:
                 master.append(entry)
         os.remove(path)
-    
-    with open(out, 'w') as f:
-        for entry in master: 
-            f.write(entry)
+        with open(out, 'a+') as f:
+            for entry in master: 
+                f.write(entry)
+        master = []
 
 def parameter_parser():
     
@@ -264,8 +223,8 @@ def parameter_parser():
     
 def main():
     
-    directory = sys.argv[1] 
-    
+    directory = sys.argv[1] #just the directory, as the names are hardcoded
+
     names = ["sg_candidates_within_genes.csv",
              "allsgcandidates.csv",
              "missmatch_matrix_{}.txt"]
