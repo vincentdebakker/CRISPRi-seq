@@ -451,13 +451,17 @@ if(platform == "windows"){
 } else{
   # looping through index instead of sequence retains feature names
   invisible(capture.output(candidate_sgRNAs <- do.call(c, mclapply(seq.int(genes_seq), function(gene){
-    findgRNAs(genes_seq[gene], 
-              annotatePaired = FALSE, 
-              n.cores.max = 1, 
-              enable.multicore = FALSE, 
-              PAM = PAM, 
-              PAM.size = nchar(PAM), 
-              gRNA.size = sum(regions))
+    if(width(genes_seq[gene]) >= sum(regions)){
+      findgRNAs(genes_seq[gene], 
+                annotatePaired = FALSE, 
+                n.cores.max = 1, 
+                enable.multicore = FALSE, 
+                PAM = PAM, 
+                PAM.size = nchar(PAM), 
+                gRNA.size = sum(regions))
+    } else{
+      message("No sgRNA designed for feature ", names(genes_seq[gene]), ": feature length <", sum(regions))
+    }
   }, mc.cores = n_cores))))
 }
 # remove, not needed anymore
