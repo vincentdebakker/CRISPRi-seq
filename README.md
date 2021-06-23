@@ -4,6 +4,7 @@ Python code by Afonso Bravo
 See also: <https://www.veeninglab.com/crispri-seq>  
 Published as a part of: 
 * Liu, X., Kimmey, J.M., Matarazzo, L., de Bakker, V., Van Maele, L., Sirard, J.-C., Nizet, V., Veening, J.-W. (2021) Exploration of Bacterial Bottlenecks and _Streptococcus pneumoniae_ pathogenesis by CRISPRi-seq. _Cell Host Microbe_ **29**, 107-120.e6. https://doi.org/10.1016/j.chom.2020.10.001 (https://www.sciencedirect.com/science/article/pii/S193131282030559X).
+    * The original repository for this paper has been replaced by the current one and was thus archived, but can still be found here: <https://github.com/veeninglab/CRISPRi-seq_archive>
 * \<submitted\>
 
 This repository contains R pipelines to (1) design a _de novo_  CRISPR interference (CRISPRi) single-guide RNA (sgRNA) library and (2) evaluate all potential binding sites of a given sgRNA library on any genome, either provided as GenBank file or NCBI assembly accession number. They were in principle developed for application to prokayotic (specifically bacterial) genomes. For both pipelines there is a version that can be run from within an R environment (we recommend RStudio), and a version that can be called from the command line using the Rscript command. Additionally, the repository contains an example of possible downstream expected efficiency analyses for the latter, as published in Liu _et al._ (2021). Lastly, it contains a subdirectory with the code to generate the naïve power analysis as published in \<submitted manuscript\>.
@@ -42,7 +43,7 @@ Rscript sgRNA_library_design_cmd.R -g genome.gb -o ~/output/ -t ~/wd/
 ```
 where `genome.gb` is a GenBank file of the genome for which the library is to be designed, `~/output/` is the local directory to write the output files to and `~/wd/` is the local working directory in which **TINDRi.py** can be found.  
 
-Depending on the genome size, number of annotated features, number of allowed mismatches in binding site identification and computer specifications (such as number of available logical processors), computation times will likely be in the order of 10-60 minutes. 
+Depending on the genome size, number of annotated features, number of allowed mismatches in binding site identification, requested output files and computer specifications (such as number of available logical processors), computation times will likely be in the order of 10-120 minutes. 
 
 ### Output
 The pipeline can return multiple files, depending on user input parameters: 
@@ -88,7 +89,7 @@ Variable | Description
 ## Within-R version
 
 ### Usage
-Open the script **sgRNA_library_design.R** (we recommend in the RStudio integrated development environment), adjust the input parameters in the first code section `#### 1. Settings ####` and then run the whole script with those input parameters. In its simplest form, only `input_genome`, `outdir` and `TINDRidir` need to be specified (under `## REQUIRED ##`). Depending on the genome size, number of annotated features, number of allowed mismatches in binding site identification and computer specifications (such as number of available logical processors), computation times will likely be in the order of 10-60 minutes. 
+Open the script **sgRNA_library_design.R** (we recommend in the RStudio integrated development environment), adjust the input parameters in the first code section `#### 1. Settings ####` and then run the whole script with those input parameters. In its simplest form, only `input_genome`, `outdir` and `TINDRidir` need to be specified (under `## REQUIRED ##`). Depending on the genome size, number of annotated features, number of allowed mismatches in binding site identification, requested output files and computer specifications (such as number of available logical processors), computation times will likely be in the order of 10-120 minutes. 
 
 ### Input
 Parameter | Description
@@ -147,7 +148,7 @@ Rscript sgRNA_library_evaluation_cmd.R -g genome.gb -s sgRNA-library_spn-D39V.cs
 ```
 where `genome.gb` is a GenBank file of the genome for the library is to be evaluated, `sgRNA-library_spn-D39V.csv` is a .csv file with the names and spacer sequences (PAM-distal to -proximal, i.e., 5'-3') of the sgRNA library to be evaluated (here our readily available _S. pneumoniae_ D39V library, file available in this repository), `~/output/` is the local directory to write the output files to and `~/wd/` is the local working directory in which **TINDRi.py** can be found.  
 
-Depending on the genome size, number of annotated features, number of allowed mismatches in binding site identification and computer specifications (such as number of available logical processors), computation times will likely be in the order of 10-60 minutes.
+Depending on the genome size, number of annotated features, number of allowed mismatches in binding site identification, requested output files and computer specifications (such as number of available logical processors), computation times will likely be in the order of 10-120 minutes.
 
 ### Output
 The pipeline can return multiple files, depending on user input parameters:
@@ -199,7 +200,7 @@ Variable | Description
 ## Within-R version
 
 ### Usage
-Open the script **sgRNA_library_evaluation.R** (we recommend in the RStudio integrated development environment), adjust the input parameters in the first code section `#### 1. Settings ####` and then run the whole script with those input parameters. In its simplest form, only `input_genome`, `sgRNA_file`, `outdir` and `TINDRidir` need to be specified (under `## REQUIRED ##`). Depending on the genome size, number of annotated features, number of allowed mismatches in binding site identification, and computer specifications (such as the number of available logical processors for multi-core processing), computation times may be in the order of 10-60 minutes. 
+Open the script **sgRNA_library_evaluation.R** (we recommend in the RStudio integrated development environment), adjust the input parameters in the first code section `#### 1. Settings ####` and then run the whole script with those input parameters. In its simplest form, only `input_genome`, `sgRNA_file`, `outdir` and `TINDRidir` need to be specified (under `## REQUIRED ##`). Depending on the genome size, number of annotated features, number of allowed mismatches in binding site identification, requested output files and computer specifications (such as the number of available logical processors for multi-core processing), computation times may be in the order of 10-120 minutes. 
 
 ### Input
 Parameter | Description
