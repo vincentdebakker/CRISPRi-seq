@@ -148,7 +148,7 @@ Rscript sgRNA_library_evaluation_cmd.R -g genome.gb -s sgRNA-library_spn-D39V.cs
 ```
 where `genome.gb` is a GenBank file of the genome for the library is to be evaluated, `sgRNA-library_spn-D39V.csv` is a .csv file with the names and spacer sequences (PAM-distal to -proximal, i.e., 5'-3') of the sgRNA library to be evaluated (here our readily available _S. pneumoniae_ D39V library, file available in this repository), `~/output/` is the local directory to write the output files to and `~/wd/` is the local working directory in which **TINDRi.py** can be found.  
 
-Depending on the genome size, number of annotated features, number of allowed mismatches in binding site identification, requested output files and computer specifications (such as number of available logical processors), computation times will likely be in the order of 10-120 minutes.
+Depending on the genome size, number of annotated features, number of allowed mismatches in binding site identification, requested output files and computer specifications (such as number of available logical processors), computation times will likely be in the order of minutes.
 
 ### Output
 The pipeline can return multiple files, depending on user input parameters:
@@ -200,7 +200,7 @@ Variable | Description
 ## Within-R version
 
 ### Usage
-Open the script **sgRNA_library_evaluation.R** (we recommend in the RStudio integrated development environment), adjust the input parameters in the first code section `#### 1. Settings ####` and then run the whole script with those input parameters. In its simplest form, only `input_genome`, `sgRNA_file`, `outdir` and `TINDRidir` need to be specified (under `## REQUIRED ##`). Depending on the genome size, number of annotated features, number of allowed mismatches in binding site identification, requested output files and computer specifications (such as the number of available logical processors for multi-core processing), computation times may be in the order of 10-120 minutes. 
+Open the script **sgRNA_library_evaluation.R** (we recommend in the RStudio integrated development environment), adjust the input parameters in the first code section `#### 1. Settings ####` and then run the whole script with those input parameters. In its simplest form, only `input_genome`, `sgRNA_file`, `outdir` and `TINDRidir` need to be specified (under `## REQUIRED ##`). Depending on the genome size, number of annotated features, number of allowed mismatches in binding site identification, requested output files and computer specifications (such as the number of available logical processors for multi-core processing), computation times may be in the order of minutes. 
 
 ### Input
 Parameter | Description
