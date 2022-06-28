@@ -37,7 +37,7 @@ output_full_list <- FALSE
 detect_offtarget_genes_full <- FALSE
 keep_TINDRi_input_sgRNAs <- FALSE
 keep_TINDRi_input_sites <- FALSE
-keep_TINDRi_matches <- TRUE
+keep_TINDRi_matches <- FALSE
 path_python <- NULL
 feature_type <- "locus_tag"
 
@@ -620,7 +620,15 @@ if(output_all_candidates){
                                     header = FALSE), 
                          use.names = FALSE)
   # get sequence of maxOffreprAct site
-  maxoff_seq <- all_sites[cand_site_ID[whichmaxOffreprAct]]
+  # first, but gives NAs in subscript if no off-targets:
+  # maxoff_seq <- all_sites[cand_site_ID[whichmaxOffreprAct]]
+  # no fixed like this:
+  # seqID_maxoff <- cand_site_ID[whichmaxOffreprAct]
+  # maxoff_seq <- ifelse(is.na(seqID_maxoff), 
+  #                      yes = NA, 
+  #                      no = as.character(all_sites)[seqID_maxoff])
+  # this should do (characters allow NA subscripts)
+  maxoff_seq <- as.character(all_sites)[cand_site_ID[whichmaxOffreprAct]]
   # select zero-mismatch IDs
   candidate_sgID_sel <- candidate_sgID[candidate_ID]
   cand_site_ID_sel <- cand_site_ID[candidate_ID]
@@ -1090,7 +1098,7 @@ if(output_optimized_list){
                                     header = FALSE), 
                          use.names = FALSE)
   # get sequence of maxOffreprAct site
-  maxOffseq_opt <- all_sites[cand_site_ID[whichmaxOffreprAct][match(sel_sg_ID, names(maxOffmm))]]
+  maxOffseq_opt <- as.character(all_sites)[cand_site_ID[whichmaxOffreprAct][match(sel_sg_ID, names(maxOffmm))]]
   rm(maxOffmm)
   # select as sites as for cand_sg_ID_sel
   cand_site_ID_sel <- cand_site_ID[candidate_ID][cand_sg_ID_sel]

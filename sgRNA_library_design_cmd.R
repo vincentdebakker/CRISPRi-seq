@@ -744,7 +744,7 @@ if(output_all_candidates){
                                     header = FALSE), 
                          use.names = FALSE)
   # get sequence of maxOffreprAct site
-  maxoff_seq <- all_sites[cand_site_ID[whichmaxOffreprAct]]
+  maxoff_seq <- as.character(all_sites)[cand_site_ID[whichmaxOffreprAct]]
   # select zero-mismatch IDs
   candidate_sgID_sel <- candidate_sgID[candidate_ID]
   cand_site_ID_sel <- cand_site_ID[candidate_ID]
@@ -1216,7 +1216,7 @@ if(output_optimized_list){
                                     header = FALSE), 
                          use.names = FALSE)
   # get sequence of maxOffreprAct site
-  maxOffseq_opt <- all_sites[cand_site_ID[whichmaxOffreprAct][match(sel_sg_ID, names(maxOffmm))]]
+  maxOffseq_opt <- as.character(all_sites)[cand_site_ID[whichmaxOffreprAct][match(sel_sg_ID, names(maxOffmm))]]
   rm(maxOffmm)
   # select as sites as for cand_sg_ID_sel
   cand_site_ID_sel <- cand_site_ID[candidate_ID][cand_sg_ID_sel]
