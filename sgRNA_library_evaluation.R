@@ -510,8 +510,8 @@ if(output_exact){
     }, mc.cores = n_cores)
     # split per sgRNA
     hitinfo1 <- do.call(rbind, mclapply(split(NTgene_ls, 
-                                             rep(seq.int(maxreprAct), 
-                                                 unlist(lapply(maxreprAct, function(x){length(x[[1]])})))), 
+                                              rep(seq.int(maxreprAct), 
+                                                  unlist(lapply(maxreprAct, function(x){length(x[[1]])})))), 
                                        function(hits){
       # cannot paste with sep or coll = ","...
       gsub(" ", ",", do.call(paste, hits))
@@ -519,10 +519,18 @@ if(output_exact){
   }
   colnames(hitinfo1) <- c("targets_1st", "target_names_1st", "chroms_1st", "strands_1st", "ranges_1st")
   # compute binding site scores 2nd-best hits
+  site_index <- unlist(lapply(maxreprAct, function(x){
+    if(isEmpty(x[[3]])){
+      NA
+    } else{
+      names(all_sites[x[[3]]])
+    }
+  }))
   if(platform == "windows"){
     cl <- makeCluster(n_cores)
     clusterExport(cl, c("genes", "regions", "offset_emp"))
-    NTgene_ls <- parLapply(cl, names(all_sites[unlist(lapply(maxreprAct, function(x){x[[3]]}))]), function(site){
+    NTgene_ls <- parLapply(cl, site_index, function(site){
+      # old: names(all_sites[unlist(lapply(maxreprAct, function(x){x[[3]]}))])
       chrom_tmp <- gsub(" ", "", sub("\\_gR[0-9]+[rf]$", "", site))
       strand_tmp <- ifelse(substr(site, nchar(site), nchar(site)) == "f", "+", "-")
       coord_tmp <- as.integer(sub(".*_gR([0-9]+).*", "\\1", site))
@@ -550,17 +558,19 @@ if(output_exact){
       }
     })
     # split per sgRNA
-    hitinfo2 <- do.call(rbind, parLapply(cl, 
-                                         split(NTgene_ls, 
-                                               rep(seq.int(maxreprAct), 
-                                                   unlist(lapply(maxreprAct, function(x){length(x[[3]])})))), 
+    hitinfo2 <- do.call(rbind, parLapply(cl,
+                                         split(NTgene_ls,
+                                               rep(seq.int(maxreprAct),
+                                                   # old: lapply(maxreprAct, function(x){length(x[[3]])})
+                                                   unlist(lapply(maxreprAct, function(x){ifelse(length(x[[3]]) == 0, 1, length(x[[3]]))})))),
                                          function(hits){
                                            # cannot paste with sep or col = ","...
                                            gsub(" ", ",", do.call(paste, hits))
                                          }))
     stopCluster(cl)
   } else{
-    NTgene_ls <- mclapply(names(all_sites[unlist(lapply(maxreprAct, function(x){x[[3]]}))]), function(site){
+    # old: names(all_sites[unlist(lapply(maxreprAct, function(x){x[[3]]}))])
+    NTgene_ls <- mclapply(site_index, function(site){
       chrom_tmp <- gsub(" ", "", sub("\\_gR[0-9]+[rf]$", "", site))
       strand_tmp <- ifelse(substr(site, nchar(site), nchar(site)) == "f", "+", "-")
       coord_tmp <- as.integer(sub(".*_gR([0-9]+).*", "\\1", site))
@@ -590,7 +600,7 @@ if(output_exact){
     # split per sgRNA
     hitinfo2 <- do.call(rbind, mclapply(split(NTgene_ls, 
                                               rep(seq.int(maxreprAct), 
-                                                  unlist(lapply(maxreprAct, function(x){length(x[[3]])})))), 
+                                                  unlist(lapply(maxreprAct, function(x){ifelse(length(x[[3]]) == 0, 1, length(x[[3]]))})))), 
                                         function(hits){
                                           # cannot paste with sep or coll = ","...
                                           gsub(" ", ",", do.call(paste, hits))
@@ -599,7 +609,14 @@ if(output_exact){
   colnames(hitinfo2) <- c("targets_2nd", "target_names_2nd", "chroms_2nd", "strands_2nd", "ranges_2nd")
   # get site sequences
   seqs1 <- all_sites[unlist(lapply(maxreprAct, function(x){x[[1]]}))]
-  seqs2 <- all_sites[unlist(lapply(maxreprAct, function(x){x[[3]]}))]
+  # old: seqs2 <- all_sites[unlist(lapply(maxreprAct, function(x){x[[3]]}))]
+  seqs2 <- unlist(DNAStringSetList(lapply(maxreprAct, function(x){
+    if(isEmpty(x[[3]])){
+      DNAStringSet(paste(rep("N", sum(regions) + nchar(PAM)), collapse = ""))
+    } else{
+      all_sites[x[[3]]]
+    }
+  })))
   seqs1 <- do.call(rbind, lapply(split(as.character(seqs1), 
                                        rep(seq.int(maxreprAct), 
                                            unlist(lapply(maxreprAct, function(x){length(x[[1]])})))), 
@@ -610,7 +627,8 @@ if(output_exact){
   colnames(seqs1) <- c("seq_1st", "PAM_1st")
   seqs2 <- do.call(rbind, lapply(split(as.character(seqs2), 
                                           rep(seq.int(maxreprAct), 
-                                              unlist(lapply(maxreprAct, function(x){length(x[[3]])})))), 
+                                              # old: function(x){length(x[[3]])}
+                                              unlist(lapply(maxreprAct, function(x){ifelse(length(x[[3]]) == 0, 1, length(x[[3]]))})))), 
                                     function(sg_site){
                                       c(paste(substr(sg_site, 1, sum(regions)), collapse = ","), 
                                         paste(substr(sg_site, sum(regions) + 1, sum(regions) + 1 + nchar(PAM)), collapse = ","))
